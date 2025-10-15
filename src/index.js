@@ -28,6 +28,7 @@ app.get('/health', (req, res) => {
 app.use('/api/companies', require('./routes/companies'));
 app.use('/api/regulations', require('./routes/regulations'));
 app.use('/api/esg-data', require('./routes/esg-data'));
+app.use('/api/reports', require('./routes/reports'));
 
 // Error handling
 app.use((err, req, res, next) => {
