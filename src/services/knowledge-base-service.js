@@ -1,13 +1,16 @@
 // Permission-Aware RAG Knowledge Base Service (F6)
+// Now using LangChain.js for modern RAG implementation
 const { v4: uuidv4 } = require('uuid');
 const bigQueryClient = require('../utils/bigquery-client');
-const embeddingService = require('../utils/embedding-service');
+const embeddingService = require('../utils/embedding-service'); // Fallback
+const langchainRAG = require('../utils/langchain-rag-service'); // Modern RAG
 const geminiClient = require('../utils/gemini-client');
 
 class KnowledgeBaseService {
   constructor() {
-    // In-memory cache for embeddings (like SecureDoc)
-    this.documentChunks = new Map();
+    // Dual implementation: LangChain (modern) + hash-based (fallback)
+    this.useLangChain = true; // Toggle for modern vs simple
+    this.documentChunks = new Map(); // Fallback storage
     this.initialized = false;
   }
 
@@ -101,15 +104,27 @@ class KnowledgeBaseService {
   async initialize(user) {
     console.log(`🔄 Initializing knowledge base for user: ${user.email}`);
 
-    // Clear existing cache
-    this.documentChunks.clear();
-
     // Get documents user can access (PERMISSION FILTERING!)
     const accessibleDocuments = await this.getAccessibleDocuments(user);
 
     console.log(`📚 Found ${accessibleDocuments.length} accessible documents`);
 
-    // Load chunks for accessible documents
+    if (this.useLangChain && accessibleDocuments.length > 0) {
+      // Modern approach: Use LangChain with Google embeddings
+      try {
+        const stats = await langchainRAG.initializeForUser(user.id, accessibleDocuments);
+        console.log(`✅ LangChain RAG initialized: ${stats.documentCount} docs, ${stats.chunkCount} chunks`);
+        this.initialized = true;
+        return stats;
+      } catch (error) {
+        console.error('❌ LangChain initialization failed, falling back to hash-based:', error);
+        this.useLangChain = false; // Fallback
+      }
+    }
+
+    // Fallback: Hash-based embeddings
+    this.documentChunks.clear();
+    
     if (accessibleDocuments.length > 0) {
       const documentIds = accessibleDocuments.map(d => d.document_id);
       
@@ -136,7 +151,7 @@ class KnowledgeBaseService {
         });
       }
 
-      console.log(`✅ Loaded ${chunks.length} chunks into memory`);
+      console.log(`✅ Loaded ${chunks.length} chunks into memory (hash-based fallback)`);
     }
 
     this.initialized = true;
@@ -186,7 +201,26 @@ class KnowledgeBaseService {
 
     console.log(`🔍 Searching knowledge base: "${query}" for user: ${user.email}`);
 
-    // Generate query embedding
+    if (this.useLangChain) {
+      // Modern approach: LangChain semantic search
+      try {
+        const results = await langchainRAG.search(user.id, query, topK);
+        console.log(`✅ LangChain found ${results.length} relevant chunks`);
+        
+        return results.map(r => ({
+          documentId: r.metadata.documentId,
+          content: r.content,
+          similarity: r.similarity,
+          companyId: r.metadata.companyId,
+          method: 'langchain',
+        }));
+      } catch (error) {
+        console.error('❌ LangChain search failed, falling back:', error);
+        this.useLangChain = false;
+      }
+    }
+
+    // Fallback: Hash-based search
     const queryEmbedding = embeddingService.generateEmbedding(query);
 
     // Get ONLY chunks user can access (PERMISSION FILTERING!)
@@ -202,7 +236,7 @@ class KnowledgeBaseService {
       return false;
     });
 
-    console.log(`📊 Searching ${accessibleChunks.length} accessible chunks`);
+    console.log(`📊 Searching ${accessibleChunks.length} accessible chunks (hash-based)`);
 
     if (accessibleChunks.length === 0) {
       return [];
@@ -218,6 +252,7 @@ class KnowledgeBaseService {
       content: r.content,
       similarity: r.similarity,
       companyId: r.company_id,
+      method: 'hash-based',
     }));
   }
 
