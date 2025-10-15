@@ -82,6 +82,12 @@ export default function DashboardLayout({
             >
               Reports
             </Link>
+            <Link
+              href="/dashboard/chat"
+              className="px-3 py-4 text-sm font-medium text-gray-700 hover:text-green-600 border-b-2 border-transparent hover:border-green-600"
+            >
+              AI Chat
+            </Link>
           </div>
         </div>
       </nav>

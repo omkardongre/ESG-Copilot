@@ -1,0 +1,225 @@
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { useUser } from '@auth0/nextjs-auth0/client';
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  sources?: any[];
+}
+
+export default function ChatPage() {
+  const { user } = useUser();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Load suggested questions
+    loadSuggestions();
+  }, []);
+
+  useEffect(() => {
+    // Scroll to bottom when messages change
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const loadSuggestions = async () => {
+    try {
+      // For demo, use hardcoded suggestions
+      setSuggestions([
+        'What ESG regulations apply to my company?',
+        'How do I calculate our carbon footprint?',
+        'What are the GRI reporting requirements?',
+        'How can we improve our ESG score?',
+        'What is the deadline for CSRD compliance?',
+      ]);
+    } catch (error) {
+      console.error('Error loading suggestions:', error);
+    }
+  };
+
+  const sendMessage = async (messageText?: string) => {
+    const text = messageText || input;
+    if (!text.trim()) return;
+
+    setLoading(true);
+    setInput('');
+
+    // Add user message
+    const userMessage: Message = { role: 'user', content: text };
+    setMessages(prev => [...prev, userMessage]);
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/chatbot/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.sub}`,
+        },
+        body: JSON.stringify({ message: text }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response');
+      }
+
+      const data = await response.json();
+
+      // Add assistant message
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: data.response,
+        sources: data.sources,
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      const errorMessage: Message = {
+        role: 'assistant',
+        content: 'Sorry, I encountered an error. Please make sure the backend API is running.',
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  return (
+    <div className="h-[calc(100vh-200px)] flex flex-col">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">ESG Copilot Assistant</h1>
+        <p className="text-gray-600 mt-2">
+          Ask questions about ESG compliance, regulations, and sustainability reporting
+        </p>
+      </div>
+
+      {/* Auth0 Feature Highlight */}
+      <div className="bg-purple-50 border border-purple-200 text-purple-700 px-4 py-3 rounded mb-4">
+        <p className="font-semibold">🤖 AI Agent: ESG Chatbot with RAG</p>
+        <p className="text-sm mt-1">
+          This chatbot uses permission-aware RAG to answer questions. It only accesses documents
+          you're authorized to see, demonstrating all 3 Auth0 features.
+        </p>
+      </div>
+
+      {/* Chat Messages */}
+      <div className="flex-1 bg-white rounded-lg shadow overflow-y-auto p-6 mb-4">
+        {messages.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">🤖</div>
+            <h3 className="text-xl font-semibold mb-2">Welcome to ESG Copilot!</h3>
+            <p className="text-gray-600 mb-6">
+              I can help you with ESG compliance, regulations, and reporting.
+            </p>
+            
+            {/* Suggested Questions */}
+            <div className="max-w-2xl mx-auto">
+              <p className="text-sm font-medium text-gray-700 mb-3">Try asking:</p>
+              <div className="space-y-2">
+                {suggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => sendMessage(suggestion)}
+                    className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-left text-sm transition"
+                  >
+                    💬 {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-3xl px-4 py-3 rounded-lg ${
+                    message.role === 'user'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-100 text-gray-900'
+                  }`}
+                >
+                  <div className="flex items-start space-x-2">
+                    <span className="text-xl">
+                      {message.role === 'user' ? '👤' : '🤖'}
+                    </span>
+                    <div className="flex-1">
+                      <p className="whitespace-pre-wrap">{message.content}</p>
+                      
+                      {message.sources && message.sources.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-300">
+                          <p className="text-xs font-semibold mb-2">Sources:</p>
+                          {message.sources.map((source, i) => (
+                            <p key={i} className="text-xs opacity-75">
+                              [{source.index}] {source.content.substring(0, 100)}...
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {loading && (
+              <div className="flex justify-start">
+                <div className="max-w-3xl px-4 py-3 rounded-lg bg-gray-100">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xl">🤖</span>
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div ref={messagesEndRef} />
+          </div>
+        )}
+      </div>
+
+      {/* Input Area */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="flex space-x-4">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Ask me anything about ESG compliance..."
+            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+            rows={2}
+            disabled={loading}
+          />
+          <button
+            onClick={() => sendMessage()}
+            disabled={loading || !input.trim()}
+            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold transition"
+          >
+            {loading ? '...' : 'Send'}
+          </button>
+        </div>
+        <p className="text-xs text-gray-500 mt-2">
+          Press Enter to send, Shift+Enter for new line
+        </p>
+      </div>
+    </div>
+  );
+}
