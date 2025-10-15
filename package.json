@@ -1,12 +1,14 @@
 {
   "name": "@okd5/sustainapilot",
   "version": "1.0.0",
-  "description": "An Auth0-secured ESG compliance copilot with multi-agent research, data collection, and report generation.",
-  "main": "index.js",
+  "description": "ESG Copilot - AI-powered sustainability compliance automation platform with Auth0 security",
+  "main": "src/index.js",
   "directories": {
     "doc": "docs"
   },
   "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -18,7 +20,9 @@
     "auth0": "^5.0.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "nodemailer": "^7.0.9"
-  },
-  "devDependencies": {}
+    "express-oauth2-jwt-bearer": "^1.7.1",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^7.0.9",
+    "uuid": "^13.0.0"
+  }
 }
