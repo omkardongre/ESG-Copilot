@@ -1,0 +1,24 @@
+{
+  "name": "@okd5/sustainapilot",
+  "version": "1.0.0",
+  "description": "An Auth0-secured ESG compliance copilot with multi-agent research, data collection, and report generation.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google-cloud/bigquery": "^8.1.1",
+    "@google/generative-ai": "^0.24.1",
+    "auth0": "^5.0.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "nodemailer": "^7.0.9"
+  },
+  "devDependencies": {}
+}
