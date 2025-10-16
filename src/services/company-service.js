@@ -34,8 +34,8 @@ class CompanyService {
   async getCompanyById(companyId) {
     const query = `
       SELECT *
-      FROM \`${bigQueryClient.datasetId}.companies\`
-      WHERE company_id = @companyId
+      FROM \`${bigQueryClient.projectId}.${bigQueryClient.datasetId}.companies\`
+      WHERE company_id = ?
       LIMIT 1
     `;
 
@@ -49,7 +49,7 @@ class CompanyService {
   async searchCompanies(filters = {}) {
     let query = `
       SELECT *
-      FROM \`${bigQueryClient.datasetId}.companies\`
+      FROM \`${bigQueryClient.projectId}.${bigQueryClient.datasetId}.companies\`
       WHERE status = 'active'
     `;
 
@@ -106,7 +106,7 @@ class CompanyService {
     updates.push('updated_at = CURRENT_TIMESTAMP()');
 
     const query = `
-      UPDATE \`${bigQueryClient.datasetId}.companies\`
+      UPDATE \`${bigQueryClient.projectId}.${bigQueryClient.datasetId}.companies\`
       SET ${updates.join(', ')}
       WHERE company_id = @companyId
     `;

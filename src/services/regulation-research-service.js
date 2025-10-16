@@ -245,8 +245,8 @@ Order by priority (1 = highest).
   async getComplianceRequirements(companyId) {
     const query = `
       SELECT *
-      FROM \`${bigQueryClient.datasetId}.compliance_requirements\`
-      WHERE company_id = @companyId
+      FROM \`${bigQueryClient.projectId}.${bigQueryClient.datasetId}.compliance_requirements\`
+      WHERE company_id = ?
       ORDER BY deadline ASC
     `;
 

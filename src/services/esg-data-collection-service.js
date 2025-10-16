@@ -265,14 +265,14 @@ Make the data realistic for a ${companyData.industry} company with ${companyData
   async getESGData(companyId, category = null) {
     let query = `
       SELECT *
-      FROM \`${bigQueryClient.datasetId}.esg_data\`
-      WHERE company_id = @companyId
+      FROM \`${bigQueryClient.projectId}.${bigQueryClient.datasetId}.esg_data\`
+      WHERE company_id = ?
     `;
 
     const params = [companyId];
 
     if (category) {
-      query += ` AND category = @category`;
+      query += ` AND category = ?`;
       params.push(category);
     }
 

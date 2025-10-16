@@ -20,6 +20,7 @@ module.exports = {
     projectId: process.env.GOOGLE_CLOUD_PROJECT,
     datasetId: process.env.DATASET_ID || 'esg_copilot_data',
     credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+    region: process.env.CLOUD_PROJECT_REGION || 'us-central1',
   },
 
   // Gemini AI

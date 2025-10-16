@@ -15,11 +15,17 @@ router.use(extractUserInfo);
  */
 router.get('/', auditMiddleware('list_companies', 'companies'), async (req, res) => {
   try {
+    console.log('📋 Fetching companies for user:', req.user);
     const companies = await companyService.getCompaniesForUser(req.user);
+    console.log('✅ Found companies:', companies.length);
     res.json({ companies });
   } catch (error) {
-    console.error('Error fetching companies:', error);
-    res.status(500).json({ error: 'Failed to fetch companies' });
+    console.error('❌ Error fetching companies:', error.message);
+    console.error('Stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to fetch companies',
+      details: error.message 
+    });
   }
 });
 

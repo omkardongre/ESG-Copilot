@@ -1,14 +1,39 @@
 // BigQuery Client for ESG Copilot
 const { BigQuery } = require('@google-cloud/bigquery');
 const config = require('../config');
+const fs = require('fs');
+const path = require('path');
 
 class BigQueryClient {
   constructor() {
+    // Read service account key file
+    let credentials = null;
+    
+    if (config.gcp.credentials) {
+      const credentialsPath = path.resolve(process.cwd(), config.gcp.credentials);
+      
+      if (fs.existsSync(credentialsPath)) {
+        credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+        console.log('✅ BigQuery credentials loaded from:', credentialsPath);
+      } else {
+        console.warn('⚠️  Service account file not found:', credentialsPath);
+      }
+    } else {
+      console.warn('⚠️  GOOGLE_APPLICATION_CREDENTIALS not set in .env');
+    }
+    
+    // Initialize BigQuery with explicit project ID
+    const projectId = config.gcp.projectId;
+    console.log('📊 Initializing BigQuery with project:', projectId);
+    
     this.bigquery = new BigQuery({
-      projectId: config.gcp.projectId,
-      keyFilename: config.gcp.credentials,
+      projectId: projectId,
+      credentials: credentials, // Use 'credentials' for now (deprecation warning is OK)
     });
+    
+    this.projectId = projectId;
     this.datasetId = config.gcp.datasetId;
+    console.log('📊 BigQuery dataset:', `${projectId}.${this.datasetId}`);
   }
 
   /**
@@ -18,7 +43,7 @@ class BigQueryClient {
     const options = {
       query: sql,
       params: params,
-      location: 'US',
+      location: config.gcp.region || 'us-central1', // Use env variable
     };
 
     try {

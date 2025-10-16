@@ -25,14 +25,25 @@ export default function CompaniesPage() {
   const fetchCompanies = async () => {
     try {
       setLoading(true);
+      
+      // Get access token from Auth0
+      const tokenResponse = await fetch('/api/auth/token');
+      const { accessToken } = await tokenResponse.json();
+      
+      if (!accessToken) {
+        throw new Error('No access token available');
+      }
+      
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/companies`, {
         headers: {
-          'Authorization': `Bearer ${user?.sub}`, // In production, use actual JWT
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
         },
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch companies');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch companies');
       }
 
       const data = await response.json();
@@ -106,10 +117,16 @@ export default function CompaniesPage() {
                 )}
               </div>
               <div className="mt-4 flex space-x-2">
-                <button className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700">
+                <button 
+                  onClick={() => alert(`View details for ${company.name}\n\nCompany ID: ${company.company_id}\n\nThis will navigate to /dashboard/companies/${company.company_id} (not implemented yet)`)}
+                  className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                >
                   View Details
                 </button>
-                <button className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300">
+                <button 
+                  onClick={() => alert(`Edit ${company.name}\n\nThis will open an edit form (not implemented yet)`)}
+                  className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                >
                   Edit
                 </button>
               </div>
