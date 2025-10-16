@@ -7,7 +7,8 @@ class JurisdictionAnalyzerAgent {
   constructor() {
     this.name = 'JurisdictionAnalyzerAgent';
     this.llm = new ChatGoogleGenerativeAI({
-      modelName: process.env.MODEL || 'gemini-2.0-flash-exp',
+      model: process.env.MODEL || 'gemini-2.0-flash-exp',
+      apiKey: process.env.GOOGLE_API_KEY,
       temperature: 0.1,
     });
   }

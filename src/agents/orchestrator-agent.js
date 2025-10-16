@@ -4,12 +4,14 @@
 const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
 const { v4: uuidv4 } = require('uuid');
 const agentLogger = require('./agent-logger');
+const messageQueue = require('./message-queue');
 
 class OrchestratorAgent {
   constructor() {
     this.name = 'OrchestratorAgent';
     this.llm = new ChatGoogleGenerativeAI({
-      modelName: process.env.MODEL || 'gemini-2.0-flash-exp',
+      model: process.env.MODEL || 'gemini-2.0-flash-exp',
+      apiKey: process.env.GOOGLE_API_KEY,
       temperature: 0.2,
     });
   }
@@ -26,7 +28,15 @@ class OrchestratorAgent {
       // Step 1: Analyze the goal and create workflow plan
       const workflowPlan = await this.planWorkflow(state);
       
-      // Step 2: Log the orchestration
+      // Step 2: Broadcast workflow plan to all agents via message queue
+      await messageQueue.broadcast(
+        this.name,
+        'workflow_plan_created',
+        { workflowPlan, taskId: state.taskId },
+        state.taskId
+      );
+      
+      // Step 3: Log the orchestration
       await agentLogger.logAction(
         this.name,
         state.userId,
@@ -36,7 +46,7 @@ class OrchestratorAgent {
         'success'
       );
 
-      // Step 3: Update state with the plan
+      // Step 4: Update state with the plan
       return {
         ...state,
         workflowPlan,
