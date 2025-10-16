@@ -15,6 +15,7 @@ class ESGDataCollectionAgent {
 
   /**
    * Main execution - Parallel fan-out/gather pattern
+   */
   async execute(state) {
     console.log(`\n📊 [${this.name}] Starting ESG data collection...`);
     console.log(`Company: ${state.companyData?.name || 'Unknown'}`);

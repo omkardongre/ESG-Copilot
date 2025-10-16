@@ -16,14 +16,17 @@
   "license": "ISC",
   "dependencies": {
     "@google-cloud/bigquery": "^8.1.1",
-    "@google-cloud/pubsub": "^4.9.0",
+    "@google-cloud/pubsub": "^4.11.0",
     "@google/generative-ai": "^0.24.1",
-    "@langchain/core": "^0.3.36",
+    "@langchain/core": "^0.3.78",
     "@langchain/google-genai": "^0.2.18",
-    "@langchain/langgraph": "^0.2.37",
+    "@langchain/langgraph": "^0.2.74",
     "auth0": "^5.0.0",
     "axios": "^1.12.2",
+    "chart.js": "^4.4.1",
+    "chartjs-node-canvas": "^4.1.6",
     "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
     "express": "^5.1.0",
     "express-oauth2-jwt-bearer": "^1.7.1",
     "ioredis": "^5.4.1",
@@ -31,6 +34,7 @@
     "langchain": "^0.3.36",
     "nodemailer": "^7.0.9",
     "pdfkit": "^0.17.2",
+    "puppeteer": "^24.25.0",
     "uuid": "^9.0.1",
     "zod": "^3.24.1"
   }
