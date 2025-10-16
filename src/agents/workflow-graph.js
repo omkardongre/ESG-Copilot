@@ -1,158 +1,69 @@
 // Workflow Graph - LangGraph orchestration
 // Defines the agent execution flow with conditional routing
 
-const { StateGraph, END } = require('@langchain/langgraph');
+const { StateGraph, START, END } = require('@langchain/langgraph');
 const { AgentState } = require('./agent-state');
-const orchestratorAgent = require('./orchestrator-agent');
-const regulationResearchAgent = require('./regulation-research-agent');
-const esgDataCollectionAgent = require('./esg-data-collection-agent');
+const OrchestratorAgent = require('./orchestrator-agent');
+const CompanyDiscoveryAgent = require('./company-discovery-agent');
+const RegulationResearchAgent = require('./regulation-research-agent');
+const ESGDataCollectionAgent = require('./esg-data-collection-agent');
 
-/**
- * Create the agent workflow graph
- */
-function createWorkflowGraph() {
-  // Initialize the state graph
-  const workflow = new StateGraph(AgentState);
-
-  // Add nodes (agents)
-  workflow.addNode('orchestrator', async (state) => {
-    return await orchestratorAgent.execute(state);
-  });
-
-  workflow.addNode('regulation_research', async (state) => {
-    return await regulationResearchAgent.execute(state);
-  });
-
-  workflow.addNode('esg_data_collection', async (state) => {
-    return await esgDataCollectionAgent.execute(state);
-  });
-
-  // Set entry point
-  workflow.setEntryPoint('orchestrator');
-
-  // Add conditional edges based on workflow plan
-  workflow.addConditionalEdges(
-    'orchestrator',
-    routeFromOrchestrator,
-    {
-      regulation_research: 'regulation_research',
-      esg_data_collection: 'esg_data_collection',
-      complete: END,
-    }
-  );
-
-  workflow.addConditionalEdges(
-    'regulation_research',
-    routeAfterRegulationResearch,
-    {
-      esg_data_collection: 'esg_data_collection',
-      complete: END,
-    }
-  );
-
-  workflow.addConditionalEdges(
-    'esg_data_collection',
-    routeAfterDataCollection,
-    {
-      complete: END,
-    }
-  );
-
-  // Compile the graph
-  return workflow.compile();
-}
+// Initialize agents
+const orchestrator = new OrchestratorAgent();
+const companyDiscovery = new CompanyDiscoveryAgent();
+const regulationResearch = new RegulationResearchAgent();
+const esgDataCollection = new ESGDataCollectionAgent();
 
 /**
  * Route from orchestrator based on workflow plan
  */
-function routeFromOrchestrator(state) {
-  const { workflowPlan, currentStep } = state;
-
-  if (!workflowPlan || workflowPlan.length === 0) {
-    console.log('🏁 No workflow plan, ending');
-    return 'complete';
-  }
-
-  console.log(`🔀 Routing from orchestrator to: ${currentStep}`);
+function routeAfterOrchestrator(state) {
+  const { currentStep } = state;
+  console.log(`🔀 Routing from orchestrator to: ${currentStep}\n`);
   
-  // Map step names to node names
-  const stepMapping = {
-    regulation_research: 'regulation_research',
-    esg_data_collection: 'esg_data_collection',
-    emissions_calculation: 'esg_data_collection', // For now, handled by data collection
-    report_generation: 'complete', // Not implemented yet
-    review: 'complete', // Not implemented yet
-    complete: 'complete',
-  };
-
-  return stepMapping[currentStep] || 'complete';
+  if (currentStep === 'company_discovery') return 'company_discovery';
+  if (currentStep === 'regulation_research') return 'regulation_research';
+  if (currentStep === 'data_collection') return 'data_collection';
+  if (currentStep === 'complete') return END;
+  
+  return END;
 }
 
 /**
  * Route after regulation research
  */
 function routeAfterRegulationResearch(state) {
-  const { workflowPlan, agentsExecuted } = state;
-
-  // Find next step in workflow
-  const nextStep = findNextStep(workflowPlan, agentsExecuted, 'regulation_research');
-  
-  console.log(`🔀 Routing after regulation research to: ${nextStep}`);
-
-  if (nextStep === 'esg_data_collection') {
-    return 'esg_data_collection';
-  }
-
-  return 'complete';
+  console.log('🔀 Routing after regulation research to: complete\n');
+  return END;
 }
 
 /**
  * Route after data collection
  */
 function routeAfterDataCollection(state) {
-  const { workflowPlan, agentsExecuted } = state;
-
-  // Find next step in workflow
-  const nextStep = findNextStep(workflowPlan, agentsExecuted, 'esg_data_collection');
-  
-  console.log(`🔀 Routing after data collection to: ${nextStep}`);
-
-  // For now, end after data collection
-  // In future, route to emissions calculation or report generation
-  return 'complete';
+  console.log('🔀 Routing after data collection to: complete\n');
+  return END;
 }
 
 /**
- * Helper: Find next step in workflow
+ * Create the agent workflow graph
  */
-function findNextStep(workflowPlan, agentsExecuted, currentAgent) {
-  if (!workflowPlan || workflowPlan.length === 0) {
-    return 'complete';
-  }
+function createWorkflowGraph() {
+  const workflow = new StateGraph(AgentState)
+    .addNode('orchestrator', async (state) => await orchestrator.execute(state))
+    .addNode('company_discovery', async (state) => await companyDiscovery.execute(state))
+    .addNode('regulation_research', async (state) => await regulationResearch.execute(state))
+    .addNode('data_collection', async (state) => await esgDataCollection.execute(state))
+    .addEdge(START, 'orchestrator')
+    .addConditionalEdges('orchestrator', routeAfterOrchestrator)
+    .addConditionalEdges('company_discovery', (state) => {
+      console.log('🔀 Routing after company discovery to: regulation_research\n');
+      return 'regulation_research';
+    })
+    .addConditionalEdges('regulation_research', routeAfterRegulationResearch)
+    .addConditionalEdges('data_collection', routeAfterDataCollection);
 
-  // Find current step index
-  const currentIndex = workflowPlan.findIndex(step => 
-    currentAgent.toLowerCase().includes(step.step.replace('_', ''))
-  );
-
-  if (currentIndex === -1 || currentIndex === workflowPlan.length - 1) {
-    return 'complete';
-  }
-
-  // Get next step
-  const nextStep = workflowPlan[currentIndex + 1];
-
-  // Check if dependencies are met
-  const dependenciesMet = nextStep.dependencies.every(dep =>
-    agentsExecuted.some(agent => agent.toLowerCase().includes(dep.replace('_', '')))
-  );
-
-  if (!dependenciesMet) {
-    console.log(`⏸️  Dependencies not met for ${nextStep.step}`);
-    return 'complete';
-  }
-
-  return nextStep.step;
+  return workflow.compile();
 }
 
 module.exports = { createWorkflowGraph };
