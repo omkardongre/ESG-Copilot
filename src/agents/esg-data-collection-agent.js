@@ -3,27 +3,26 @@
 // Implements fan-out/gather pattern for parallel execution
 
 const agentLogger = require('./agent-logger');
-const epaCollectorAgent = require('./sub-agents/epa-collector-agent');
-const aiEstimatorAgent = require('./sub-agents/ai-estimator-agent');
+const EPADataCollectorAgent = require('./sub-agents/epa-data-collector-agent');
+const WebScraperAgent = require('./sub-agents/web-scraper-agent');
+const AIEstimatorAgent = require('./sub-agents/ai-estimator-agent');
 
 class ESGDataCollectionAgent {
   constructor() {
     this.name = 'ESGDataCollectionAgent';
-    this.subAgents = [epaCollectorAgent, aiEstimatorAgent];
+    this.subAgents = [EPADataCollectorAgent, WebScraperAgent, AIEstimatorAgent];
   }
 
   /**
    * Main execution - Parallel fan-out/gather pattern
-   */
   async execute(state) {
     console.log(`\n📊 [${this.name}] Starting ESG data collection...`);
     console.log(`Company: ${state.companyData?.name || 'Unknown'}`);
 
     try {
-      // Step 1: Fan-out - Execute sub-agents in parallel
-      console.log(`🔀 [${this.name}] Fanning out to ${this.subAgents.length} sub-agents...`);
-      
-      const subAgentPromises = this.subAgents.map(async (subAgent) => {
+      // Step 1: Execute sub-agents in parallel (fan-out)
+      console.log('   ↳ Executing sub-agents in parallel...');
+      const subAgentResults = await Promise.allSettled(this.subAgents.map(async (subAgent) => {
         try {
           console.log(`  ↳ Starting ${subAgent.name}...`);
           const result = await subAgent.execute(state);
