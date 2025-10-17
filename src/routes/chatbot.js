@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const chatbotService = require('../services/chatbot-service');
-const { checkJwt, extractUserInfo, requireCompanyAccess } = require('../middleware/auth0');
+const { checkJwt, extractUserInfo, requirePermission, requireCompanyAccess } = require('../middleware/auth0');
 const { auditMiddleware } = require('../middleware/audit-logger');
 
 // Apply JWT validation and user extraction to all routes
@@ -48,7 +48,7 @@ router.post(
  */
 router.get(
   '/history/:companyId',
-  requireCompanyAccess,
+  requirePermission('read:companies'),
   auditMiddleware('view_chat_history', 'chat'),
   async (req, res) => {
     try {
@@ -82,7 +82,7 @@ router.get(
  */
 router.get(
   '/suggestions/:companyId',
-  requireCompanyAccess,
+  requirePermission('read:companies'),
   async (req, res) => {
     try {
       const { companyId } = req.params;

@@ -46,11 +46,12 @@ class RegulationResearchService {
   }
 
   /**
-   * Identify applicable ESG regulations using Gemini AI
+   * Identify applicable ESG regulations using Gemini AI with Google Search
+   * PRODUCTION-LEVEL: Uses real-time web search to find latest regulations
    */
   async identifyRegulations(companyData) {
     const prompt = `
-You are an ESG compliance expert. Analyze this company and identify ALL applicable ESG regulations.
+You are an ESG compliance expert with access to real-time web search. Search the web and analyze this company to identify ALL applicable ESG regulations.
 
 Company Information:
 - Name: ${companyData.name}
@@ -60,13 +61,16 @@ Company Information:
 - Revenue: ${companyData.revenue ? '$' + companyData.revenue.toLocaleString() : 'Unknown'}
 - Public Status: ${companyData.public_status || 'private'}
 
-Task: Identify applicable ESG regulations based on:
-1. Company location (country-specific regulations)
-2. Industry sector (industry-specific requirements)
-3. Company size (employee/revenue thresholds)
-4. Public vs private status
+Task: 
+1. SEARCH THE WEB for latest ESG regulations in ${companyData.country} for ${companyData.industry} industry
+2. Identify regulations based on:
+   - Company location (country-specific regulations)
+   - Industry sector (industry-specific requirements)
+   - Company size (employee/revenue thresholds)
+   - Public vs private status
+3. Verify current compliance deadlines and requirements
 
-Consider these major regulations:
+Search for these and other relevant regulations:
 - EU CSRD (Corporate Sustainability Reporting Directive)
 - SEC Climate Disclosure Rules (US public companies)
 - TCFD (Task Force on Climate-related Financial Disclosures)
@@ -74,6 +78,7 @@ Consider these major regulations:
 - California Transparency in Supply Chains Act
 - EU Taxonomy Regulation
 - SFDR (Sustainable Finance Disclosure Regulation)
+- Any NEW regulations passed in 2024-2025
 
 Respond with a JSON array of regulations:
 [
@@ -87,16 +92,23 @@ Respond with a JSON array of regulations:
   }
 ]
 
-Only include regulations that ACTUALLY apply to this company. Be specific about applicability.
+Only include regulations that ACTUALLY apply to this company based on your web search. Be specific about applicability.
 `;
 
     try {
-      const result = await geminiClient.generateJSON(prompt);
-      return Array.isArray(result) ? result : [];
+      console.log('🔍 Searching web for latest ESG regulations...');
+      const result = await geminiClient.generateJSONWithSearch(prompt);
+      
+      if (!result || !Array.isArray(result) || result.length === 0) {
+        throw new Error('Gemini AI with web search returned no regulations. The AI model may be unavailable or unable to analyze this company profile.');
+      }
+      
+      console.log(`✅ Found ${result.length} applicable regulations via web search`);
+      return result;
     } catch (error) {
-      console.error('Error identifying regulations:', error);
-      // Fallback to basic rules
-      return this.getFallbackRegulations(companyData);
+      console.error('❌ AI regulation research with web search failed:', error.message);
+      // NO FALLBACK - Let it fail with clear error message
+      throw new Error(`AI regulation research failed: ${error.message}. Please try again or check your Gemini API configuration.`);
     }
   }
 
@@ -141,14 +153,19 @@ Order by priority (1 = highest).
 
     try {
       const result = await geminiClient.generateJSON(prompt);
-      const frameworks = Array.isArray(result) ? result : [];
+      
+      if (!result || !Array.isArray(result) || result.length === 0) {
+        throw new Error('Gemini AI returned no framework recommendations.');
+      }
+      
+      const frameworks = result;
       return regulations.map((_, index) => 
-        frameworks[index]?.framework || 'GRI'
+        frameworks[index]?.framework || frameworks[0]?.framework || 'GRI'
       );
     } catch (error) {
-      console.error('Error recommending frameworks:', error);
-      // Default to GRI
-      return regulations.map(() => 'GRI');
+      console.error('❌ AI framework recommendation failed:', error.message);
+      // NO FALLBACK - Let it fail with clear error message
+      throw new Error(`AI framework recommendation failed: ${error.message}. Please try again.`);
     }
   }
 
@@ -169,14 +186,16 @@ Order by priority (1 = highest).
       // Find matching deadline
       for (const [key, deadline] of Object.entries(deadlineMap)) {
         if (reg.name.includes(key)) {
-          return deadline.toISOString();
+          // Return DATE format (YYYY-MM-DD) for BigQuery
+          return deadline.toISOString().split('T')[0];
         }
       }
 
       // Default: 6 months from now
       const defaultDeadline = new Date(now);
       defaultDeadline.setMonth(defaultDeadline.getMonth() + 6);
-      return defaultDeadline.toISOString();
+      // Return DATE format (YYYY-MM-DD) for BigQuery
+      return defaultDeadline.toISOString().split('T')[0];
     });
   }
 

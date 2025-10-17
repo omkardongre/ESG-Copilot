@@ -3,13 +3,14 @@
 // Implements fan-out/gather pattern for parallel execution
 
 const agentLogger = require('./agent-logger');
-const EPADataCollectorAgent = require('./sub-agents/epa-data-collector-agent');
+const EPADataCollectorAgent = require('./sub-agents/epa-collector-agent');
 const WebScraperAgent = require('./sub-agents/web-scraper-agent');
 const AIEstimatorAgent = require('./sub-agents/ai-estimator-agent');
 
 class ESGDataCollectionAgent {
   constructor() {
     this.name = 'ESGDataCollectionAgent';
+    // Sub-agents are already instantiated singletons
     this.subAgents = [EPADataCollectorAgent, WebScraperAgent, AIEstimatorAgent];
   }
 
@@ -33,10 +34,9 @@ class ESGDataCollectionAgent {
           console.error(`  ✗ ${subAgent.name} failed:`, error.message);
           return { agent: subAgent.name, error: error.message, success: false };
         }
-      });
+      }));
 
-      // Step 2: Gather - Wait for all sub-agents to complete
-      const subAgentResults = await Promise.all(subAgentPromises);
+      // Step 2: Gather - All sub-agents completed
       console.log(`🔄 [${this.name}] Gathering results from sub-agents...`);
 
       // Step 3: Merge results
@@ -215,4 +215,4 @@ class ESGDataCollectionAgent {
   }
 }
 
-module.exports = new ESGDataCollectionAgent();
+module.exports = ESGDataCollectionAgent;

@@ -178,4 +178,4 @@ class RegulationResearchAgent {
   }
 }
 
-module.exports = new RegulationResearchAgent();
+module.exports = RegulationResearchAgent;

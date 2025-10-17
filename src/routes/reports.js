@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const reportGeneratorService = require('../services/report-generator-service');
-const { checkJwt, extractUserInfo, requireCompanyAccess, requireRole, ROLES } = require('../middleware/auth0');
+const { checkJwt, extractUserInfo, requirePermission, requireCompanyAccess, requireRole, ROLES } = require('../middleware/auth0');
 const { auditMiddleware } = require('../middleware/audit-logger');
 
 // Apply JWT validation and user extraction to all routes
@@ -15,8 +15,7 @@ router.use(extractUserInfo);
  */
 router.post(
   '/generate/:companyId',
-  requireCompanyAccess,
-  requireRole(ROLES.COMPANY_ADMIN, ROLES.ESG_CONSULTANT),
+  requirePermission('execute:agents'),
   auditMiddleware('generate_report', 'reports'),
   async (req, res) => {
     try {
@@ -112,7 +111,7 @@ router.get(
  */
 router.get(
   '/company/:companyId',
-  requireCompanyAccess,
+  requirePermission('read:reports'),
   auditMiddleware('list_reports', 'reports'),
   async (req, res) => {
     try {

@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const regulationResearchService = require('../services/regulation-research-service');
 const companyService = require('../services/company-service');
-const { checkJwt, extractUserInfo, requireCompanyAccess, ROLES } = require('../middleware/auth0');
+const { checkJwt, extractUserInfo, requirePermission, requireCompanyAccess, ROLES } = require('../middleware/auth0');
 const { auditMiddleware } = require('../middleware/audit-logger');
 
 // Apply JWT validation and user extraction to all routes
@@ -16,7 +16,7 @@ router.use(extractUserInfo);
  */
 router.post(
   '/research/:companyId',
-  requireCompanyAccess,
+  requirePermission('execute:agents'),
   auditMiddleware('research_regulations', 'regulations'),
   async (req, res) => {
     try {
@@ -53,7 +53,7 @@ router.post(
  */
 router.get(
   '/:companyId',
-  requireCompanyAccess,
+  requirePermission('read:companies'),
   auditMiddleware('view_regulations', 'regulations'),
   async (req, res) => {
     try {

@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const esgDataCollectionService = require('../services/esg-data-collection-service');
 const companyService = require('../services/company-service');
-const { checkJwt, extractUserInfo, requireCompanyAccess, requireRole, ROLES } = require('../middleware/auth0');
+const { checkJwt, extractUserInfo, requirePermission, requireCompanyAccess, requireRole, ROLES } = require('../middleware/auth0');
 const { auditMiddleware } = require('../middleware/audit-logger');
 
 // Apply JWT validation and user extraction to all routes
@@ -16,8 +16,7 @@ router.use(extractUserInfo);
  */
 router.post(
   '/collect/:companyId',
-  requireCompanyAccess,
-  requireRole(ROLES.COMPANY_ADMIN, ROLES.ESG_CONSULTANT),
+  requirePermission('execute:agents'),
   auditMiddleware('collect_esg_data', 'esg_data'),
   async (req, res) => {
     try {
@@ -49,7 +48,7 @@ router.post(
  */
 router.get(
   '/:companyId',
-  requireCompanyAccess,
+  requirePermission('read:esg_data'),
   auditMiddleware('view_esg_data', 'esg_data'),
   async (req, res) => {
     try {
@@ -77,8 +76,7 @@ router.get(
  */
 router.post(
   '/:companyId/manual',
-  requireCompanyAccess,
-  requireRole(ROLES.COMPANY_ADMIN, ROLES.ESG_CONSULTANT),
+  requirePermission('write:esg_data'),
   auditMiddleware('add_manual_esg_data', 'esg_data'),
   async (req, res) => {
     try {

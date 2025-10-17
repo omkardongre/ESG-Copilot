@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const knowledgeBaseService = require('../services/knowledge-base-service');
-const { checkJwt, extractUserInfo, requireCompanyAccess, requireRole, ROLES } = require('../middleware/auth0');
+const { checkJwt, extractUserInfo, requirePermission, requireCompanyAccess, requireRole, ROLES } = require('../middleware/auth0');
 const { auditMiddleware } = require('../middleware/audit-logger');
 
 // Apply JWT validation and user extraction to all routes
@@ -133,7 +133,7 @@ router.post(
  */
 router.get(
   '/documents/:companyId',
-  requireCompanyAccess,
+  requirePermission('read:companies'),
   auditMiddleware('list_documents', 'documents'),
   async (req, res) => {
     try {

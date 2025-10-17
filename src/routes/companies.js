@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const companyService = require('../services/company-service');
-const { checkJwt, extractUserInfo, requireRole, requireCompanyAccess, ROLES } = require('../middleware/auth0');
+const { checkJwt, extractUserInfo, requireRole, requirePermission, requireCompanyAccess, ROLES } = require('../middleware/auth0');
 const { auditMiddleware } = require('../middleware/audit-logger');
 
 // Apply JWT validation and user extraction to all routes
@@ -31,11 +31,11 @@ router.get('/', auditMiddleware('list_companies', 'companies'), async (req, res)
 
 /**
  * POST /api/companies
- * Create a new company (Consultant only)
+ * Create a new company (Consultant or Company Admin)
  */
 router.post(
   '/',
-  requireRole(ROLES.ESG_CONSULTANT),
+  requirePermission('write:companies'), // Use permission instead of role
   auditMiddleware('create_company', 'companies'),
   async (req, res) => {
     try {
@@ -60,8 +60,13 @@ router.post(
 
       res.status(201).json({ company });
     } catch (error) {
-      console.error('Error creating company:', error);
-      res.status(500).json({ error: 'Failed to create company' });
+      console.error('❌ Error creating company:', error);
+      console.error('Error details:', error.message);
+      console.error('Stack:', error.stack);
+      res.status(500).json({ 
+        error: 'Failed to create company',
+        details: error.message 
+      });
     }
   }
 );
@@ -72,7 +77,7 @@ router.post(
  */
 router.get(
   '/:companyId',
-  requireCompanyAccess,
+  requirePermission('read:companies'),
   auditMiddleware('view_company', 'companies'),
   async (req, res) => {
     try {
@@ -96,8 +101,7 @@ router.get(
  */
 router.put(
   '/:companyId',
-  requireCompanyAccess,
-  requireRole(ROLES.COMPANY_ADMIN, ROLES.ESG_CONSULTANT),
+  requirePermission('write:companies'),
   auditMiddleware('update_company', 'companies'),
   async (req, res) => {
     try {

@@ -67,6 +67,18 @@ class BigQueryClient {
       return { success: true };
     } catch (error) {
       console.error(`BigQuery insert error (${tableId}):`, error);
+      
+      // Log detailed error information
+      if (error.errors && error.errors.length > 0) {
+        console.error('Detailed errors:');
+        error.errors.forEach((err, index) => {
+          console.error(`Row ${index}:`, JSON.stringify(err, null, 2));
+        });
+      }
+      
+      // Log the data that failed to insert
+      console.error('Failed rows:', JSON.stringify(rows, null, 2));
+      
       throw error;
     }
   }
