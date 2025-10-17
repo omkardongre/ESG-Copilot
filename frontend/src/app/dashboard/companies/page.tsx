@@ -8,6 +8,8 @@ interface Company {
   name: string;
   industry: string;
   country: string;
+  city?: string;
+  website?: string;
   employees?: number;
   revenue?: number;
 }
@@ -17,6 +19,19 @@ export default function CompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    industry: '',
+    country: '',
+    city: '',
+    website: '',
+    employees: '',
+    revenue: '',
+  });
 
   useEffect(() => {
     fetchCompanies();
@@ -55,6 +70,111 @@ export default function CompaniesPage() {
     }
   };
 
+  const handleCreateCompany = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreating(true);
+    setError('');
+
+    try {
+      const tokenResponse = await fetch('/api/auth/token');
+      const { accessToken } = await tokenResponse.json();
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/companies`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          industry: formData.industry,
+          country: formData.country,
+          city: formData.city || undefined,
+          website: formData.website || undefined,
+          employees: formData.employees ? parseInt(formData.employees) : undefined,
+          revenue: formData.revenue ? parseInt(formData.revenue) : undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || errorData.error || 'Failed to create company');
+      }
+
+      // Success - reset form and refresh list
+      setFormData({ name: '', industry: '', country: '', city: '', website: '', employees: '', revenue: '' });
+      setShowForm(false);
+      await fetchCompanies();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleEditCompany = (company: Company) => {
+    setEditingCompanyId(company.company_id);
+    setFormData({
+      name: company.name,
+      industry: company.industry || '',
+      country: company.country || '',
+      city: company.city || '',
+      website: company.website || '',
+      employees: company.employees?.toString() || '',
+      revenue: company.revenue?.toString() || '',
+    });
+    setShowForm(true);
+  };
+
+  const handleUpdateCompany = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditing(true);
+    setError('');
+
+    try {
+      const tokenResponse = await fetch('/api/auth/token');
+      const { accessToken } = await tokenResponse.json();
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/companies/${editingCompanyId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          industry: formData.industry,
+          country: formData.country,
+          city: formData.city || undefined,
+          website: formData.website || undefined,
+          employees: formData.employees ? parseInt(formData.employees) : undefined,
+          revenue: formData.revenue ? parseInt(formData.revenue) : undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || errorData.error || 'Failed to update company');
+      }
+
+      // Success - reset form and refresh list
+      setFormData({ name: '', industry: '', country: '', city: '', website: '', employees: '', revenue: '' });
+      setShowForm(false);
+      setEditingCompanyId(null);
+      await fetchCompanies();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setFormData({ name: '', industry: '', country: '', city: '', website: '', employees: '', revenue: '' });
+    setShowForm(false);
+    setEditingCompanyId(null);
+  };
+
   if (loading) {
     return <div className="text-center py-12">Loading companies...</div>;
   }
@@ -86,13 +206,146 @@ export default function CompaniesPage() {
         </p>
       </div>
 
+      {/* Create Company Button */}
+      <div className="mb-6">
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold"
+        >
+          {showForm ? '✕ Cancel' : '+ Create Company'}
+        </button>
+      </div>
+
+      {/* Create/Edit Company Form */}
+      {showForm && (
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <h2 className="text-xl font-bold mb-4">
+            {editingCompanyId ? 'Edit Company' : 'Create New Company'}
+          </h2>
+          <form onSubmit={editingCompanyId ? handleUpdateCompany : handleCreateCompany} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Company Name *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="e.g., GreenTech Solutions"
+              />
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Industry *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.industry}
+                  onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="e.g., Technology"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Country *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.country}
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="e.g., United States"
+                />
+              </div>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  City (optional)
+                </label>
+                <input
+                  type="text"
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="e.g., Austin"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Website (optional)
+                </label>
+                <input
+                  type="url"
+                  value={formData.website}
+                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="e.g., https://www.tesla.com"
+                />
+              </div>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Employees (optional)
+                </label>
+                <input
+                  type="number"
+                  value={formData.employees}
+                  onChange={(e) => setFormData({ ...formData, employees: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="e.g., 127855"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Annual Revenue (optional)
+                </label>
+                <input
+                  type="number"
+                  value={formData.revenue}
+                  onChange={(e) => setFormData({ ...formData, revenue: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="e.g., 96773000000"
+                />
+              </div>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                type="submit"
+                disabled={creating || editing}
+                className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 font-semibold"
+              >
+                {editingCompanyId 
+                  ? (editing ? 'Updating...' : 'Update Company')
+                  : (creating ? 'Creating...' : 'Create Company')
+                }
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="px-6 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* Companies Grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {companies.length === 0 ? (
           <div className="col-span-full text-center py-12 bg-white rounded-lg shadow">
             <p className="text-gray-500 mb-4">No companies found</p>
             <p className="text-sm text-gray-400">
-              Use the API to create companies or wait for backend setup
+              Click "Create Company" above to add your first company
             </p>
           </div>
         ) : (
@@ -117,15 +370,15 @@ export default function CompaniesPage() {
                 )}
               </div>
               <div className="mt-4 flex space-x-2">
-                <button 
-                  onClick={() => alert(`View details for ${company.name}\n\nCompany ID: ${company.company_id}\n\nThis will navigate to /dashboard/companies/${company.company_id} (not implemented yet)`)}
-                  className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                <a
+                  href={`/dashboard/companies/${company.company_id}`}
+                  className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 inline-block text-center"
                 >
                   View Details
-                </button>
+                </a>
                 <button 
-                  onClick={() => alert(`Edit ${company.name}\n\nThis will open an edit form (not implemented yet)`)}
-                  className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                  onClick={() => handleEditCompany(company)}
+                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
                 >
                   Edit
                 </button>

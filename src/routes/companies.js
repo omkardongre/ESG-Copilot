@@ -39,7 +39,7 @@ router.post(
   auditMiddleware('create_company', 'companies'),
   async (req, res) => {
     try {
-      const { name, industry, country, employees, revenue, publicStatus, complianceRequirements } = req.body;
+      const { name, industry, country, city, website, employees, revenue, publicStatus, complianceRequirements } = req.body;
 
       if (!name || !industry || !country) {
         return res.status(400).json({ error: 'Missing required fields: name, industry, country' });
@@ -50,6 +50,8 @@ router.post(
           name,
           industry,
           country,
+          city,
+          website,
           employees,
           revenue,
           publicStatus,

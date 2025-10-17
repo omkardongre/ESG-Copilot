@@ -34,24 +34,22 @@ class ESGDataCollectionService {
       
       const startTime = Date.now();
 
-      // Create promises with timeout handling (15 seconds max per agent)
-      const timeoutMs = 15000;
-      
+      // Create promises with timeout handling (different timeouts per agent)
       const epaPromise = this.runWithTimeout(
         epaCollectorAgent.execute(state, null),
-        timeoutMs,
+        15000,  // 15s for EPA API
         'EPA Collector'
       );
       
       const webScraperPromise = this.runWithTimeout(
         webScraperAgent.execute(state, null),
-        timeoutMs,
+        20000,  // 20s for web scraping
         'Web Scraper'
       );
       
       const aiEstimatorPromise = this.runWithTimeout(
         aiEstimatorAgent.execute(state, null),
-        timeoutMs,
+        30000,  // 30s for AI (Gemini can be slow)
         'AI Estimator'
       );
 
@@ -90,9 +88,6 @@ class ESGDataCollectionService {
       }
 
       // AI Estimator Data (fills gaps) - ALWAYS USE if available
-      console.log(`   🔍 DEBUG: aiData.status = ${aiData.status}`);
-      console.log(`   🔍 DEBUG: aiData.value = ${JSON.stringify(aiData.value)?.substring(0, 200)}`);
-      
       if (aiData.status === 'fulfilled' && aiData.value) {
         // Use AI estimates to fill gaps
         if (!results.environmental || Object.keys(results.environmental).length === 0) {
@@ -107,10 +102,7 @@ class ESGDataCollectionService {
         results.sources.push('AI Estimation');
         console.log(`   ✅ AI estimation data collected`);
       } else {
-        console.log(`   ⚠️  AI estimation failed`);
-        if (aiData.status === 'rejected') {
-          console.log(`   🔍 DEBUG: Rejection reason = ${aiData.reason?.message}`);
-        }
+        console.log(`   ⚠️  AI estimation failed or timed out`);
       }
 
       // Step 3: Store in BigQuery

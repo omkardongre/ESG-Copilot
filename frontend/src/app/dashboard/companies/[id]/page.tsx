@@ -9,6 +9,8 @@ interface Company {
   name: string;
   industry: string;
   country: string;
+  city?: string;
+  website?: string;
   employees?: number;
   revenue?: number;
   public_status?: string;
@@ -419,6 +421,25 @@ export default function CompanyDetailsPage() {
             <p className="text-sm text-gray-500">Country</p>
             <p className="font-semibold">{company.country}</p>
           </div>
+          {company.city && (
+            <div>
+              <p className="text-sm text-gray-500">City</p>
+              <p className="font-semibold">{company.city}</p>
+            </div>
+          )}
+          {company.website && (
+            <div>
+              <p className="text-sm text-gray-500">Website</p>
+              <a 
+                href={company.website} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline text-sm"
+              >
+                {company.website}
+              </a>
+            </div>
+          )}
           <div>
             <p className="text-sm text-gray-500">Status</p>
             <span
@@ -452,7 +473,20 @@ export default function CompanyDetailsPage() {
           {company.created_at && (
             <div>
               <p className="text-sm text-gray-500">Created</p>
-              <p className="text-sm">{new Date(company.created_at).toLocaleDateString()}</p>
+              <p className="text-sm">
+                {company.created_at.value 
+                  ? new Date(company.created_at.value).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })
+                  : new Date(company.created_at).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })
+                }
+              </p>
             </div>
           )}
         </div>

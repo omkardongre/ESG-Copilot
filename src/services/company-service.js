@@ -14,6 +14,8 @@ class CompanyService {
       name: data.name,
       industry: data.industry,
       country: data.country,
+      city: data.city || null,
+      website: data.website || null,
       employees: data.employees || null,
       revenue: data.revenue || null,
       public_status: data.publicStatus || 'private',
@@ -79,40 +81,36 @@ class CompanyService {
    * Update company
    */
   async updateCompany(companyId, data) {
-    const updates = [];
-    const params = [companyId];
-
-    if (data.name) {
-      updates.push('name = @name');
-      params.push(data.name);
-    }
-    if (data.industry) {
-      updates.push('industry = @industry');
-      params.push(data.industry);
-    }
-    if (data.country) {
-      updates.push('country = @country');
-      params.push(data.country);
-    }
-    if (data.employees !== undefined) {
-      updates.push('employees = @employees');
-      params.push(data.employees);
-    }
-    if (data.revenue !== undefined) {
-      updates.push('revenue = @revenue');
-      params.push(data.revenue);
+    // Get existing company first
+    const existingCompany = await this.getCompanyById(companyId);
+    if (!existingCompany) {
+      throw new Error('Company not found');
     }
 
-    updates.push('updated_at = CURRENT_TIMESTAMP()');
+    // Merge updates with existing data
+    const updatedCompany = {
+      ...existingCompany,
+      name: data.name !== undefined ? data.name : existingCompany.name,
+      industry: data.industry !== undefined ? data.industry : existingCompany.industry,
+      country: data.country !== undefined ? data.country : existingCompany.country,
+      city: data.city !== undefined ? data.city : existingCompany.city,
+      website: data.website !== undefined ? data.website : existingCompany.website,
+      employees: data.employees !== undefined ? data.employees : existingCompany.employees,
+      revenue: data.revenue !== undefined ? data.revenue : existingCompany.revenue,
+      updated_at: new Date().toISOString(),
+    };
 
-    const query = `
-      UPDATE \`${bigQueryClient.projectId}.${bigQueryClient.datasetId}.companies\`
-      SET ${updates.join(', ')}
-      WHERE company_id = @companyId
+    // Delete old record
+    const deleteQuery = `
+      DELETE FROM \`${bigQueryClient.projectId}.${bigQueryClient.datasetId}.companies\`
+      WHERE company_id = '${companyId}'
     `;
+    await bigQueryClient.query(deleteQuery);
 
-    await bigQueryClient.query(query, params);
-    return await this.getCompanyById(companyId);
+    // Insert updated record
+    await bigQueryClient.insert('companies', [updatedCompany]);
+    
+    return updatedCompany;
   }
 
   /**
