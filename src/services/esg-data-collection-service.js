@@ -16,8 +16,9 @@ class ESGDataCollectionService {
    * Implements parallel fan-out/gather pattern with 3 specialized agents
    */
   async collectESGData(companyId, companyData) {
-    console.log(`📊 Collecting ESG data for company: ${companyData.name}`);
+    console.log(`\n📊 Collecting ESG data for company: ${companyData.name}`);
     console.log(`   🤖 Using multi-agent orchestration (3 parallel agents)`);
+    console.log(`   🔧 Multi-agent version: v2.0 (with parallel execution)`);
 
     const state = { companyData };
     const results = {
@@ -33,8 +34,8 @@ class ESGDataCollectionService {
       
       const startTime = Date.now();
 
-      // Create promises with timeout handling (10 seconds max per agent)
-      const timeoutMs = 10000;
+      // Create promises with timeout handling (15 seconds max per agent)
+      const timeoutMs = 15000;
       
       const epaPromise = this.runWithTimeout(
         epaCollectorAgent.execute(state, null),
@@ -67,8 +68,8 @@ class ESGDataCollectionService {
       // GATHER RESULTS: Merge data from all agents (graceful degradation)
       
       // EPA Data (environmental only)
-      if (epaData.status === 'fulfilled' && epaData.value) {
-        results.environmental = { ...results.environmental, ...epaData.value };
+      if (epaData.status === 'fulfilled' && epaData.value && epaData.value.environmental) {
+        results.environmental = { ...results.environmental, ...epaData.value.environmental };
         results.sources.push('EPA Envirofacts');
         console.log(`   ✅ EPA data collected`);
       } else {
@@ -76,7 +77,7 @@ class ESGDataCollectionService {
       }
 
       // Web Scraper Data (all categories)
-      if (webData.status === 'fulfilled' && webData.value) {
+      if (webData.status === 'fulfilled' && webData.value && webData.value.environmental) {
         if (webData.value.environmental) {
           results.environmental = { ...results.environmental, ...webData.value.environmental };
         }
@@ -88,17 +89,17 @@ class ESGDataCollectionService {
         console.log(`   ⚠️  Web scraper failed or skipped`);
       }
 
-      // AI Estimator Data (fills gaps)
+      // AI Estimator Data (fills gaps) - ALWAYS USE if available
       if (aiData.status === 'fulfilled' && aiData.value) {
-        // Only use AI estimates if we don't have real data
+        // Use AI estimates to fill gaps
         if (!results.environmental || Object.keys(results.environmental).length === 0) {
-          results.environmental = aiData.value.environmental;
+          results.environmental = aiData.value.environmental || {};
         }
-        if (!results.social) {
-          results.social = aiData.value.social;
+        if (!results.social || Object.keys(results.social || {}).length === 0) {
+          results.social = aiData.value.social || {};
         }
-        if (!results.governance) {
-          results.governance = aiData.value.governance;
+        if (!results.governance || Object.keys(results.governance || {}).length === 0) {
+          results.governance = aiData.value.governance || {};
         }
         results.sources.push('AI Estimation');
         console.log(`   ✅ AI estimation data collected`);
