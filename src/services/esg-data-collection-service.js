@@ -1,54 +1,145 @@
-// ESG Data Collection Service (F3)
+// ESG Data Collection Service (F3) - Multi-Agent Orchestration
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const bigQueryClient = require('../utils/bigquery-client');
 const tokenVaultClient = require('../utils/token-vault-client');
 const geminiClient = require('../utils/gemini-client');
 
+// Import sub-agents
+const epaCollectorAgent = require('../agents/sub-agents/epa-collector-agent');
+const webScraperAgent = require('../agents/sub-agents/web-scraper-agent');
+const aiEstimatorAgent = require('../agents/sub-agents/ai-estimator-agent');
+
 class ESGDataCollectionService {
   /**
-   * Collect ESG data for a company from multiple sources
+   * Collect ESG data for a company from multiple sources using multi-agent orchestration
+   * Implements parallel fan-out/gather pattern with 3 specialized agents
    */
   async collectESGData(companyId, companyData) {
     console.log(`📊 Collecting ESG data for company: ${companyData.name}`);
+    console.log(`   🤖 Using multi-agent orchestration (3 parallel agents)`);
 
+    const state = { companyData };
     const results = {
-      environmental: null,
+      environmental: {},
       social: null,
       governance: null,
       sources: [],
     };
 
-    // Step 1: Collect environmental data from EPA (if US company)
-    if (companyData.country === 'United States') {
-      results.environmental = await this.collectEPAData(companyData);
-      if (results.environmental) {
+    try {
+      // PARALLEL EXECUTION: Run 3 agents simultaneously (fan-out)
+      console.log(`   ⚡ Spawning 3 agents in parallel...`);
+      
+      const startTime = Date.now();
+
+      // Create promises with timeout handling (10 seconds max per agent)
+      const timeoutMs = 10000;
+      
+      const epaPromise = this.runWithTimeout(
+        epaCollectorAgent.execute(state, null),
+        timeoutMs,
+        'EPA Collector'
+      );
+      
+      const webScraperPromise = this.runWithTimeout(
+        webScraperAgent.execute(state, null),
+        timeoutMs,
+        'Web Scraper'
+      );
+      
+      const aiEstimatorPromise = this.runWithTimeout(
+        aiEstimatorAgent.execute(state, null),
+        timeoutMs,
+        'AI Estimator'
+      );
+
+      // Wait for all agents to complete (or timeout)
+      const [epaData, webData, aiData] = await Promise.allSettled([
+        epaPromise,
+        webScraperPromise,
+        aiEstimatorPromise,
+      ]);
+
+      const executionTime = Date.now() - startTime;
+      console.log(`   ✅ All 3 agents completed in ${executionTime}ms (parallel execution)`);
+
+      // GATHER RESULTS: Merge data from all agents (graceful degradation)
+      
+      // EPA Data (environmental only)
+      if (epaData.status === 'fulfilled' && epaData.value) {
+        results.environmental = { ...results.environmental, ...epaData.value };
         results.sources.push('EPA Envirofacts');
+        console.log(`   ✅ EPA data collected`);
+      } else {
+        console.log(`   ⚠️  EPA data collection failed or skipped`);
       }
-    }
 
-    // Step 2: Scrape company website for ESG data
-    const webData = await this.scrapeCompanyWebsite(companyData);
-    if (webData) {
-      results.environmental = { ...results.environmental, ...webData.environmental };
-      results.social = webData.social;
-      results.governance = webData.governance;
-      results.sources.push('Company Website');
-    }
+      // Web Scraper Data (all categories)
+      if (webData.status === 'fulfilled' && webData.value) {
+        if (webData.value.environmental) {
+          results.environmental = { ...results.environmental, ...webData.value.environmental };
+        }
+        results.social = webData.value.social;
+        results.governance = webData.value.governance;
+        results.sources.push('Company Website');
+        console.log(`   ✅ Web scraper data collected`);
+      } else {
+        console.log(`   ⚠️  Web scraper failed or skipped`);
+      }
 
-    // Step 3: Store in BigQuery
-    const esgDataRecords = this.formatESGDataForStorage(companyId, results);
-    if (esgDataRecords.length > 0) {
-      await bigQueryClient.insert('esg_data', esgDataRecords);
-    }
+      // AI Estimator Data (fills gaps)
+      if (aiData.status === 'fulfilled' && aiData.value) {
+        // Only use AI estimates if we don't have real data
+        if (!results.environmental || Object.keys(results.environmental).length === 0) {
+          results.environmental = aiData.value.environmental;
+        }
+        if (!results.social) {
+          results.social = aiData.value.social;
+        }
+        if (!results.governance) {
+          results.governance = aiData.value.governance;
+        }
+        results.sources.push('AI Estimation');
+        console.log(`   ✅ AI estimation data collected`);
+      } else {
+        console.log(`   ⚠️  AI estimation failed`);
+      }
 
-    return {
-      companyId,
-      companyName: companyData.name,
-      dataCollected: results,
-      recordsStored: esgDataRecords.length,
-      sources: results.sources,
-    };
+      // Step 3: Store in BigQuery
+      const esgDataRecords = this.formatESGDataForStorage(companyId, results);
+      if (esgDataRecords.length > 0) {
+        console.log(`   💾 Storing ${esgDataRecords.length} ESG data points in BigQuery`);
+        await bigQueryClient.insert('esg_data', esgDataRecords);
+      }
+
+      console.log(`   📊 Data collection summary:`);
+      console.log(`      - Sources: ${results.sources.length}`);
+      console.log(`      - Records: ${esgDataRecords.length}`);
+
+      return {
+        companyId,
+        companyName: companyData.name,
+        dataCollected: results,
+        recordsStored: esgDataRecords.length,
+        sources: results.sources,
+      };
+    } catch (error) {
+      console.error(`   ❌ Multi-agent orchestration failed:`, error.message);
+      throw new Error(`ESG data collection failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Run a promise with timeout
+   */
+  async runWithTimeout(promise, timeoutMs, agentName) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`${agentName} timeout after ${timeoutMs}ms`)), timeoutMs)
+      ),
+    ]);
   }
 
   /**
@@ -231,7 +322,7 @@ Make the data realistic for a ${companyData.industry} company with ${companyData
           reporting_period: new Date().getFullYear().toString(),
           data_source: results.sources.join(', '),
           verified: false,
-          created: timestamp,
+          created_at: timestamp,
         });
       });
     }

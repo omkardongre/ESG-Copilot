@@ -20,17 +20,12 @@ class WebScraperAgent {
   async execute(state, previousResults) {
     console.log(`      🌐 [${this.name}] Scraping company website...`);
 
-    const { companyInfo } = state;
-    const website = companyInfo?.website || previousResults?.website;
+    const companyData = state.companyData || state.companyInfo;
+    const website = companyData?.website || previousResults?.website;
 
     if (!website) {
-      console.log(`      ⚠️  [${this.name}] No website URL provided`);
-      return {
-        source: 'web_scraper',
-        success: false,
-        data: [],
-        error: 'No website URL available',
-      };
+      console.log(`      ⚠️  [${this.name}] No website URL provided - skipping`);
+      return null; // Return null so it can be handled gracefully
     }
 
     try {
@@ -41,25 +36,34 @@ class WebScraperAgent {
       const esgSections = await this.extractESGSections(scrapedContent, website);
 
       // Step 3: Parse ESG data using AI
-      const esgData = await this.parseESGData(esgSections, companyInfo);
+      const esgData = await this.parseESGData(esgSections, companyData);
 
       console.log(`      ✅ [${this.name}] Extracted ${esgData.length} ESG metrics`);
 
-      return {
-        source: 'web_scraper',
-        success: true,
-        data: esgData,
-        scrapedUrl: website,
-        timestamp: new Date().toISOString(),
+      // Return data in format expected by ESG data collection service
+      const result = {
+        environmental: {},
+        social: null,
+        governance: null,
       };
+
+      // Group data by category
+      esgData.forEach(item => {
+        if (item.category === 'environmental') {
+          result.environmental[item.metric_name] = `${item.metric_value} ${item.unit}`;
+        } else if (item.category === 'social') {
+          if (!result.social) result.social = {};
+          result.social[item.metric_name] = `${item.metric_value} ${item.unit}`;
+        } else if (item.category === 'governance') {
+          if (!result.governance) result.governance = {};
+          result.governance[item.metric_name] = `${item.metric_value} ${item.unit}`;
+        }
+      });
+
+      return result;
     } catch (error) {
       console.error(`      ❌ [${this.name}] Scraping failed:`, error.message);
-      return {
-        source: 'web_scraper',
-        success: false,
-        data: [],
-        error: error.message,
-      };
+      return null; // Return null on error for graceful degradation
     }
   }
 
@@ -319,4 +323,4 @@ If no ESG data is found, return empty arrays.`;
   }
 }
 
-module.exports = WebScraperAgent;
+module.exports = new WebScraperAgent();
