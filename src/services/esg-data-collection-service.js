@@ -90,6 +90,9 @@ class ESGDataCollectionService {
       }
 
       // AI Estimator Data (fills gaps) - ALWAYS USE if available
+      console.log(`   🔍 DEBUG: aiData.status = ${aiData.status}`);
+      console.log(`   🔍 DEBUG: aiData.value = ${JSON.stringify(aiData.value)?.substring(0, 200)}`);
+      
       if (aiData.status === 'fulfilled' && aiData.value) {
         // Use AI estimates to fill gaps
         if (!results.environmental || Object.keys(results.environmental).length === 0) {
@@ -105,6 +108,9 @@ class ESGDataCollectionService {
         console.log(`   ✅ AI estimation data collected`);
       } else {
         console.log(`   ⚠️  AI estimation failed`);
+        if (aiData.status === 'rejected') {
+          console.log(`   🔍 DEBUG: Rejection reason = ${aiData.reason?.message}`);
+        }
       }
 
       // Step 3: Store in BigQuery
