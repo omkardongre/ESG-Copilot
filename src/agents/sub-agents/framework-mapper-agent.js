@@ -1,84 +1,58 @@
 // Framework Mapper Sub-Agent
-// Recommends ESG reporting frameworks (GRI, SASB, TCFD, etc.)
+// Recommends ESG reporting frameworks (GRI, SASB, TCFD, etc.) using AI reasoning
 
-const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
+const geminiClient = require('../../utils/gemini-client');
 
 class FrameworkMapperAgent {
   constructor() {
     this.name = 'FrameworkMapperAgent';
-    this.llm = new ChatGoogleGenerativeAI({
-      model: process.env.MODEL || 'gemini-2.0-flash-exp',
-      apiKey: process.env.GOOGLE_API_KEY,
-      temperature: 0.1,
-    });
   }
 
   /**
-   * Execute framework mapping
+   * Execute framework mapping with AI reasoning
    */
   async execute(state, previousResults) {
-    console.log(`      📋 [${this.name}] Mapping frameworks...`);
+    console.log(`      📋 [${this.name}] Mapping frameworks with AI reasoning...`);
 
     const companyData = state.companyData;
-    const jurisdiction = previousResults?.jurisdiction;
+    const regulations = previousResults || [];
 
     try {
-      const prompt = `You are an ESG reporting expert. Recommend appropriate ESG reporting frameworks for this company.
+      const prompt = `You are an ESG reporting expert. Recommend appropriate ESG reporting frameworks for this company based on AI reasoning.
 
 Company Information:
 - Name: ${companyData.name}
 - Industry: ${companyData.industry || 'General Business'}
-- Country: ${jurisdiction?.country || companyData.country || 'United States'}
+- Country: ${companyData.country || 'United States'}
 - Employees: ${companyData.employees || 100}
 - Public/Private: ${companyData.isPublic ? 'Public' : 'Private'}
 
 Applicable Regulations:
-${previousResults?.regulations?.map(r => `- ${r.name}`).join('\n') || 'None identified'}
+${regulations.map(r => `- ${r.name} (${r.jurisdiction})`).join('\n') || 'None identified'}
 
-Recommend frameworks and return JSON:
-{
-  "frameworks": [
-    {
-      "name": "string (GRI, SASB, TCFD, CDP, etc.)",
-      "fullName": "string",
-      "description": "string",
-      "reason": "string (why recommended)",
-      "priority": "string (primary, secondary, optional)",
-      "regions": ["array of applicable regions"],
-      "industries": ["array of applicable industries"]
-    }
-  ],
-  "deadlines": [
-    {
-      "regulation": "string",
-      "deadline": "string (YYYY-MM-DD)",
-      "description": "string",
-      "recurring": boolean
-    }
-  ]
-}
+Task: Recommend 1-3 frameworks that best fit this company's needs.
 
 Common frameworks:
 - GRI (Global Reporting Initiative): Universal, comprehensive
 - SASB (Sustainability Accounting Standards Board): Industry-specific, investor-focused
 - TCFD (Task Force on Climate-related Financial Disclosures): Climate risk
 - CDP (Carbon Disclosure Project): Environmental data
+- ESRS (European Sustainability Reporting Standards): EU CSRD compliance
 - ISSB (International Sustainability Standards Board): New global standard
 
-Return ONLY the JSON object, no other text.`;
+Respond with a JSON array of framework names (strings):
+["Framework 1", "Framework 2", "Framework 3"]
 
-      const response = await this.llm.invoke(prompt);
-      const content = response.content;
+Example: ["TCFD (Task Force on Climate-related Financial Disclosures)", "GRI (Global Reporting Initiative)", "SASB (Sustainability Accounting Standards Board)"]
+`;
 
-      // Extract JSON
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('Failed to extract JSON from LLM response');
+      const result = await geminiClient.generateJSON(prompt);
+
+      if (!result || !Array.isArray(result)) {
+        throw new Error('Failed to get frameworks from AI');
       }
 
-      const result = JSON.parse(jsonMatch[0]);
-
-      console.log(`      ✅ [${this.name}] Recommended ${result.frameworks?.length || 0} frameworks`);
+      console.log(`      ✅ [${this.name}] Recommended ${result.length} frameworks via AI reasoning`);
 
       return result;
     } catch (error) {
@@ -93,47 +67,13 @@ Return ONLY the JSON object, no other text.`;
    * Get fallback frameworks if AI fails
    */
   getFallbackFrameworks(companyData) {
-    const currentYear = new Date().getFullYear();
+    console.log(`      ⚠️  [${this.name}] Using fallback frameworks`);
     
-    return {
-      frameworks: [
-        {
-          name: 'GRI',
-          fullName: 'Global Reporting Initiative',
-          description: 'Comprehensive sustainability reporting standard',
-          reason: 'Most widely adopted framework globally',
-          priority: 'primary',
-          regions: ['Global'],
-          industries: ['All'],
-        },
-        {
-          name: 'SASB',
-          fullName: 'Sustainability Accounting Standards Board',
-          description: 'Industry-specific sustainability standards',
-          reason: 'Investor-focused, industry-specific metrics',
-          priority: 'secondary',
-          regions: ['North America', 'Global'],
-          industries: [companyData.industry || 'General Business'],
-        },
-        {
-          name: 'TCFD',
-          fullName: 'Task Force on Climate-related Financial Disclosures',
-          description: 'Climate risk disclosure framework',
-          reason: 'Increasingly mandatory for climate reporting',
-          priority: 'primary',
-          regions: ['Global'],
-          industries: ['All'],
-        },
-      ],
-      deadlines: [
-        {
-          regulation: 'Annual ESG Report',
-          deadline: `${currentYear}-12-31`,
-          description: 'End of fiscal year ESG reporting',
-          recurring: true,
-        },
-      ],
-    };
+    return [
+      'TCFD (Task Force on Climate-related Financial Disclosures)',
+      'GRI (Global Reporting Initiative)',
+      'SASB (Sustainability Accounting Standards Board)',
+    ];
   }
 }
 

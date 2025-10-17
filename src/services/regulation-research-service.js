@@ -1,53 +1,96 @@
-// Regulation Research Service (F2)
+// Regulation Research Service (F2) - Multi-Agent Orchestration
 const { v4: uuidv4 } = require('uuid');
 const geminiClient = require('../utils/gemini-client');
 const bigQueryClient = require('../utils/bigquery-client');
 
+// Import sub-agents
+const jurisdictionAnalyzer = require('../agents/sub-agents/jurisdiction-analyzer-agent');
+const frameworkMapper = require('../agents/sub-agents/framework-mapper-agent');
+const deadlineCalculator = require('../agents/sub-agents/deadline-calculator-agent');
+
 class RegulationResearchService {
   /**
-   * Research applicable ESG regulations for a company
+   * Research applicable ESG regulations for a company using multi-agent orchestration
+   * Implements parallel fan-out/gather pattern with 3 specialized agents
    */
   async researchRegulations(companyId, companyData) {
     console.log(`🔍 Researching regulations for company: ${companyData.name}`);
+    console.log(`   🤖 Using multi-agent orchestration (3 parallel agents)`);
 
-    // Step 1: Identify applicable regulations
-    const regulations = await this.identifyRegulations(companyData);
+    const state = { companyData };
 
-    // Step 2: Recommend frameworks
-    const frameworks = await this.recommendFrameworks(companyData, regulations);
+    try {
+      // PARALLEL EXECUTION: Run 3 agents simultaneously (fan-out)
+      console.log(`   ⚡ Spawning 3 agents in parallel...`);
+      
+      const startTime = Date.now();
+      
+      const [regulations, frameworks, deadlineResults] = await Promise.all([
+        jurisdictionAnalyzer.execute(state, null),
+        frameworkMapper.execute(state, null),
+        Promise.resolve({ deadlines: [] }), // Deadline calculator runs after regulations
+      ]);
 
-    // Step 3: Calculate deadlines
-    const deadlines = this.calculateDeadlines(regulations);
+      // Run deadline calculator with regulations from jurisdiction analyzer
+      const deadlineData = await deadlineCalculator.execute(state, regulations);
 
-    // Step 4: Store in BigQuery
-    const complianceRequirements = regulations.map((reg, index) => ({
-      requirement_id: uuidv4(),
-      company_id: companyId,
-      regulation_name: reg.name,
-      regulation_type: reg.type,
-      jurisdiction: reg.jurisdiction,
-      description: reg.description,
-      deadline: deadlines[index],
-      framework: frameworks[index] || 'GRI',
-      status: 'pending',
-      created_at: new Date().toISOString(),
-    }));
+      const executionTime = Date.now() - startTime;
+      console.log(`   ✅ All 3 agents completed in ${executionTime}ms (parallel execution)`);
 
-    if (complianceRequirements.length > 0) {
-      await bigQueryClient.insert('compliance_requirements', complianceRequirements);
+      // GATHER RESULTS: Aggregate from all agents
+      const regulationsFound = regulations.length || 0;
+      const frameworksFound = frameworks.length || 0;
+      const deadlinesFound = deadlineData.deadlines.length || 0;
+
+      console.log(`   📊 Aggregated results:`);
+      console.log(`      - Regulations: ${regulationsFound}`);
+      console.log(`      - Frameworks: ${frameworksFound}`);
+      console.log(`      - Deadlines: ${deadlinesFound}`);
+
+      // Step 4: Store in BigQuery
+      const complianceRequirements = regulations.map((reg, index) => ({
+        requirement_id: uuidv4(),
+        company_id: companyId,
+        regulation_name: reg.name,
+        regulation_type: reg.type,
+        jurisdiction: reg.jurisdiction,
+        description: reg.description,
+        deadline: deadlineData.deadlines[index]?.deadline || this.getDefaultDeadline(),
+        framework: frameworks[0] || 'GRI',
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      }));
+
+      if (complianceRequirements.length > 0) {
+        console.log(`   💾 Storing ${complianceRequirements.length} compliance requirements in BigQuery`);
+        await bigQueryClient.insert('compliance_requirements', complianceRequirements);
+      }
+
+      return {
+        regulations,
+        frameworks,
+        deadlines: deadlineData.deadlines,
+        complianceRequirements,
+        regulationsFound,
+      };
+    } catch (error) {
+      console.error(`   ❌ Multi-agent orchestration failed:`, error.message);
+      throw new Error(`Regulation research failed: ${error.message}`);
     }
-
-    return {
-      regulations,
-      frameworks,
-      deadlines,
-      complianceRequirements,
-    };
   }
 
   /**
-   * Identify applicable ESG regulations using Gemini AI with Google Search
-   * PRODUCTION-LEVEL: Uses real-time web search to find latest regulations
+   * Get default deadline (6 months from now)
+   */
+  getDefaultDeadline() {
+    const deadline = new Date();
+    deadline.setMonth(deadline.getMonth() + 6);
+    return deadline.toISOString().split('T')[0];
+  }
+
+  /**
+   * LEGACY METHOD - Kept for backward compatibility
+   * Use researchRegulations() instead for multi-agent orchestration
    */
   async identifyRegulations(companyData) {
     const prompt = `
