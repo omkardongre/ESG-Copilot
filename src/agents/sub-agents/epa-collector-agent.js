@@ -14,19 +14,14 @@ class EPACollectorAgent {
    * Execute EPA data collection
    */
   async execute(state) {
-    console.log(`    🏭 [${this.name}] Collecting EPA data...`);
+    console.log(`      🏭 [${this.name}] Collecting EPA data...`);
 
     const companyData = state.companyData;
 
     // Only collect EPA data for US companies
     if (companyData.country !== 'United States' && companyData.country !== 'US') {
-      console.log(`    ℹ️  [${this.name}] Skipping - Company not in US`);
-      return {
-        environmental: {},
-        social: {},
-        governance: {},
-        source: null,
-      };
+      console.log(`      ℹ️  [${this.name}] Skipping - Company not in US`);
+      return null;
     }
 
     try {
@@ -37,7 +32,7 @@ class EPACollectorAgent {
       const city = companyData.city || companyData.city_name || 'LOS ANGELES';
       const searchUrl = `https://data.epa.gov/efservice/tri_facility/city_name/${encodeURIComponent(city)}/rows/0:10/JSON`;
 
-      console.log(`    🔍 [${this.name}] Querying EPA API for city: ${city}`);
+      console.log(`      🔍 [${this.name}] Querying EPA API for city: ${city}`);
 
       const response = await axios.get(searchUrl, {
         timeout: 10000,
@@ -45,13 +40,8 @@ class EPACollectorAgent {
       });
 
       if (!response.data || response.data.length === 0) {
-        console.log(`    ℹ️  [${this.name}] No EPA data found`);
-        return {
-          environmental: {},
-          social: {},
-          governance: {},
-          source: null,
-        };
+        console.log(`      ℹ️  [${this.name}] No EPA data found`);
+        return null;
       }
 
       // Find facility matching company name
@@ -64,42 +54,32 @@ class EPACollectorAgent {
       );
 
       if (!facility) {
-        console.log(`    ℹ️  [${this.name}] No matching EPA facility found`);
-        return {
-          environmental: {},
-          social: {},
-          governance: {},
-          source: null,
-        };
+        console.log(`      ℹ️  [${this.name}] No matching EPA facility found`);
+        return null;
       }
 
-      console.log(`    ✅ [${this.name}] Found EPA facility: ${facility.facility_name}`);
+      console.log(`      ✅ [${this.name}] Found EPA facility: ${facility.facility_name}`);
 
-      // Extract environmental data
+      // Extract environmental data (flatten for storage)
       const environmentalData = {
-        epa_facility_id: facility.tri_facility_id,
-        facility_name: facility.facility_name,
-        parent_company: facility.parent_co_name,
-        epa_registry_id: facility.epa_registry_id,
-        location: {
-          address: facility.street_address,
-          city: facility.city_name,
-          state: facility.state_abbr,
-          zip: facility.zip_code,
-          latitude: facility.pref_latitude,
-          longitude: facility.pref_longitude,
-        },
+        epa_facility_id: facility.tri_facility_id || 'N/A',
+        facility_name: facility.facility_name || 'N/A',
+        parent_company: facility.parent_co_name || 'N/A',
+        epa_registry_id: facility.epa_registry_id || 'N/A',
+        facility_address: facility.street_address || 'N/A',
+        facility_city: facility.city_name || 'N/A',
+        facility_state: facility.state_abbr || 'N/A',
+        facility_zip: facility.zip_code || 'N/A',
       };
 
       return {
         environmental: environmentalData,
-        social: {},
-        governance: {},
-        source: 'EPA Envirofacts',
+        social: null,
+        governance: null,
       };
     } catch (error) {
-      console.error(`    ❌ [${this.name}] Error:`, error.message);
-      throw error;
+      console.error(`      ❌ [${this.name}] Error:`, error.message);
+      return null; // Graceful degradation
     }
   }
 }

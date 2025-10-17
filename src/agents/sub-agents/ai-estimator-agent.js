@@ -13,7 +13,7 @@ class AIEstimatorAgent {
    * Execute AI-based ESG estimation
    */
   async execute(state) {
-    console.log(`    🤖 [${this.name}] Estimating ESG metrics with AI...`);
+    console.log(`      🤖 [${this.name}] Estimating ESG metrics with AI...`);
 
     const companyData = state.companyData;
 
@@ -57,7 +57,7 @@ Return ONLY the JSON object, no other text.`;
 
       const result = await geminiClient.generateJSON(prompt);
 
-      console.log(`    ✅ [${this.name}] Generated AI estimates`);
+      console.log(`      ✅ [${this.name}] Generated AI estimates`);
 
       return {
         environmental: result.environmental || {},
@@ -66,7 +66,7 @@ Return ONLY the JSON object, no other text.`;
         source: 'AI Estimation (Gemini)',
       };
     } catch (error) {
-      console.error(`    ❌ [${this.name}] Error:`, error.message);
+      console.error(`      ❌ [${this.name}] Error:`, error.message);
       
       // Return fallback estimates
       return this.getFallbackEstimates(companyData);
