@@ -12,7 +12,8 @@ const FeedbackGeneratorAgent = require('./sub-agents/feedback-generator-agent');
 class ReviewCritiqueAgent {
   constructor() {
     this.name = 'ReviewCritiqueAgent';
-    this.maxIterations = 3; // Maximum refinement iterations
+    // Read from environment variable (default: 3)
+    this.maxIterations = parseInt(process.env.MAX_REVIEW_ITERATIONS || '3', 10);
   }
 
   /**

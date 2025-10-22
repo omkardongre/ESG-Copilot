@@ -7,16 +7,21 @@ const agentLogger = require('./agent-logger');
 const messageQueue = require('./message-queue');
 
 class EmissionsCalculatorAgent {
-  constructor() {
+  constructor(tokenVaultApiKeys = null) {
     this.name = 'EmissionsCalculatorAgent';
     this.llm = new ChatGoogleGenerativeAI({
-      model: process.env.MODEL || 'gemini-2.0-flash-exp',
+      model: process.env.MODEL || 'gemini-2.5-flash',
       apiKey: process.env.GOOGLE_API_KEY,
       temperature: 0.1,
     });
 
-    this.climatiqApiKey = process.env.CLIMATIQ_API_KEY;
+    // ✅ PRODUCTION: Get API key from Token Vault (JWT)
+    this.climatiqApiKey = tokenVaultApiKeys?.climatiq_api_key || null;
     this.climatiqBaseUrl = 'https://api.climatiq.io/data/v1';
+    
+    if (!this.climatiqApiKey) {
+      console.warn('⚠️  [EmissionsCalculatorAgent] No Climatiq API key in Token Vault');
+    }
   }
 
   /**
@@ -132,42 +137,62 @@ class EmissionsCalculatorAgent {
       return activityData;
     }
 
+    console.log(`   📊 Extracting activity data from ${esgData.length} ESG metrics...`);
+
     esgData.forEach(item => {
       const metricName = item.metric_name?.toLowerCase() || '';
-      const value = parseFloat(item.metric_value);
+      const metricValue = item.metric_value;
+      
+      // Handle both string and number values
+      let value;
+      if (typeof metricValue === 'string') {
+        // Extract number from strings like "1,234 kWh" or "$1,234"
+        const numMatch = metricValue.match(/([\d,]+\.?\d*)/);        if (numMatch) {
+          value = parseFloat(numMatch[1].replace(/,/g, ''));
+        }
+      } else {
+        value = parseFloat(metricValue);
+      }
 
-      if (isNaN(value)) return;
+      if (isNaN(value) || value <= 0) return;
 
-      // Energy consumption
-      if (metricName.includes('electricity') || metricName.includes('energy')) {
-        if (metricName.includes('renewable')) {
-          activityData.energy.renewable_kwh = value;
+      // Energy consumption (broad matching)
+      if (metricName.includes('electricity') || metricName.includes('energy') || metricName.includes('kwh') || metricName.includes('power')) {
+        if (metricName.includes('renewable') || metricName.includes('solar') || metricName.includes('wind')) {
+          activityData.energy.renewable_kwh = (activityData.energy.renewable_kwh || 0) + value;
+          console.log(`      ✅ Renewable energy: ${value} kWh`);
         } else {
-          activityData.energy.total_kwh = value;
+          activityData.energy.total_kwh = (activityData.energy.total_kwh || 0) + value;
+          console.log(`      ✅ Total energy: ${value} kWh`);
         }
       }
 
       // Natural gas
-      if (metricName.includes('natural gas') || metricName.includes('gas consumption')) {
-        activityData.energy.natural_gas_kwh = value;
+      if (metricName.includes('natural gas') || metricName.includes('gas consumption') || metricName.includes('gas usage')) {
+        activityData.energy.natural_gas_kwh = (activityData.energy.natural_gas_kwh || 0) + value;
+        console.log(`      ✅ Natural gas: ${value} kWh`);
       }
 
       // Fuel
-      if (metricName.includes('fuel') || metricName.includes('diesel') || metricName.includes('gasoline')) {
-        activityData.transport.fuel_liters = value;
+      if (metricName.includes('fuel') || metricName.includes('diesel') || metricName.includes('gasoline') || metricName.includes('petrol')) {
+        activityData.transport.fuel_liters = (activityData.transport.fuel_liters || 0) + value;
+        console.log(`      ✅ Fuel: ${value} liters`);
       }
 
       // Waste
-      if (metricName.includes('waste')) {
-        activityData.waste.total_kg = value;
+      if (metricName.includes('waste') || metricName.includes('garbage') || metricName.includes('trash')) {
+        activityData.waste.total_kg = (activityData.waste.total_kg || 0) + value;
+        console.log(`      ✅ Waste: ${value} kg`);
       }
 
       // Water
       if (metricName.includes('water')) {
-        activityData.water.total_m3 = value;
+        activityData.water.total_m3 = (activityData.water.total_m3 || 0) + value;
+        console.log(`      ✅ Water: ${value} m³`);
       }
     });
 
+    console.log(`   📊 Extracted activity data:`, JSON.stringify(activityData, null, 2));
     return activityData;
   }
 
@@ -184,7 +209,7 @@ class EmissionsCalculatorAgent {
       // Natural gas combustion
       if (activityData.energy.natural_gas_kwh) {
         const gasEmissions = await this.calculateClimatiq({
-          activity_id: 'electricity-energy_source_grid_mix',
+          activity_id: 'fuel_type_natural_gas',
           region: companyInfo.country || 'US',
           parameters: {
             energy: activityData.energy.natural_gas_kwh,
@@ -225,24 +250,25 @@ class EmissionsCalculatorAgent {
         }
       }
 
-      // If no data, estimate based on company size
+      // ✅ PRODUCTION: Scope 1 is optional (many companies don't have direct fuel data)
       if (totalCO2e === 0) {
-        totalCO2e = this.estimateScope1(companyInfo);
+        console.log(`   ℹ️  No Scope 1 data (natural gas/fuel) - this is normal for companies without direct fuel combustion`);
         breakdown.push({
-          source: 'Estimated (no data)',
-          co2e_kg: totalCO2e,
+          source: 'No direct fuel combustion',
+          co2e_kg: 0,
           activity: 'N/A',
-          unit: 'estimated',
+          unit: 'N/A',
         });
       }
     } catch (error) {
-      console.warn(`   ⚠️  Scope 1 calculation failed:`, error.message);
-      totalCO2e = this.estimateScope1(companyInfo);
+      // ✅ PRODUCTION: Log error but don't fail (Scope 1 is optional)
+      console.warn(`   ⚠️  Scope 1 calculation error: ${error.message}`);
       breakdown.push({
-        source: 'Estimated (API error)',
-        co2e_kg: totalCO2e,
+        source: 'Calculation error',
+        co2e_kg: 0,
         activity: 'N/A',
-        unit: 'estimated',
+        unit: 'N/A',
+        error: error.message,
       });
     }
 
@@ -265,7 +291,7 @@ class EmissionsCalculatorAgent {
     try {
       if (activityData.energy.total_kwh) {
         const electricityEmissions = await this.calculateClimatiq({
-          activity_id: 'electricity-energy_source_grid_mix',
+          activity_id: 'electricity-supply_grid-source_supplier_mix',
           region: companyInfo.country || 'US',
           parameters: {
             energy: activityData.energy.total_kwh,
@@ -296,25 +322,13 @@ class EmissionsCalculatorAgent {
         }
       }
 
-      // If no data, estimate
+      // ✅ PRODUCTION: Scope 2 is REQUIRED (electricity is core data)
       if (totalCO2e === 0) {
-        totalCO2e = this.estimateScope2(companyInfo);
-        breakdown.push({
-          source: 'Estimated (no data)',
-          co2e_kg: totalCO2e,
-          activity: 'N/A',
-          unit: 'estimated',
-        });
+        throw new Error('No Scope 2 activity data (electricity) available. Please collect energy consumption data first.');
       }
     } catch (error) {
-      console.warn(`   ⚠️  Scope 2 calculation failed:`, error.message);
-      totalCO2e = this.estimateScope2(companyInfo);
-      breakdown.push({
-        source: 'Estimated (API error)',
-        co2e_kg: totalCO2e,
-        activity: 'N/A',
-        unit: 'estimated',
-      });
+      // ✅ PRODUCTION: Fail fast if Scope 2 fails (this is required)
+      throw new Error(`Scope 2 calculation failed: ${error.message}`);
     }
 
     return {
@@ -333,48 +347,22 @@ class EmissionsCalculatorAgent {
     let totalCO2e = 0;
     const breakdown = [];
 
-    try {
-      // Waste disposal
-      if (activityData.waste.total_kg) {
-        const wasteEmissions = await this.calculateClimatiq({
-          activity_id: 'waste_type_mixed_municipal_solid_waste',
-          region: companyInfo.country || 'US',
-          parameters: {
-            weight: activityData.waste.total_kg,
-            weight_unit: 'kg',
-          },
-        });
-
-        if (wasteEmissions) {
-          totalCO2e += wasteEmissions.co2e;
-          breakdown.push({
-            source: 'Waste Disposal',
-            co2e_kg: wasteEmissions.co2e,
-            activity: activityData.waste.total_kg,
-            unit: 'kg',
-          });
-        }
-      }
-
-      // Estimate other Scope 3 (employee commuting, business travel, supply chain)
-      const estimatedScope3 = this.estimateScope3(companyInfo);
-      totalCO2e += estimatedScope3;
-      breakdown.push({
-        source: 'Estimated (commuting, travel, supply chain)',
-        co2e_kg: estimatedScope3,
-        activity: 'N/A',
-        unit: 'estimated',
-      });
-    } catch (error) {
-      console.warn(`   ⚠️  Scope 3 calculation failed:`, error.message);
-      totalCO2e = this.estimateScope3(companyInfo);
-      breakdown.push({
-        source: 'Estimated (API error)',
-        co2e_kg: totalCO2e,
-        activity: 'N/A',
-        unit: 'estimated',
-      });
+    // ✅ PRODUCTION: Scope 3 requires complex supply chain data
+    // Climatiq's waste factors use monetary units ($/€), not weight
+    // For production, we skip Scope 3 unless we have spend data
+    console.log(`   ℹ️  Scope 3 requires supply chain spend data (not available in basic ESG metrics)`);
+    
+    if (activityData.waste.total_kg) {
+      console.log(`   ℹ️  Waste data found (${activityData.waste.total_kg} kg) but Climatiq requires monetary spend, not weight`);
     }
+
+    breakdown.push({
+      source: 'Scope 3 requires supply chain spend data',
+      co2e_kg: 0,
+      activity: 'N/A',
+      unit: 'N/A',
+      note: 'Climatiq Scope 3 factors use monetary units (USD/EUR), not activity units',
+    });
 
     return {
       co2e_kg: totalCO2e,
@@ -388,21 +376,41 @@ class EmissionsCalculatorAgent {
    */
   async calculateClimatiq(params) {
     if (!this.climatiqApiKey) {
-      throw new Error('Climatiq API key not configured');
+      throw new Error('Climatiq API key not found in Token Vault. Please configure it in Auth0.');
     }
 
     try {
+      // ✅ PRODUCTION: Normalize region to ISO 3166-1 alpha-2 code
+      let region = params.region || 'US';
+      const regionMap = {
+        'United States': 'US',
+        'USA': 'US',
+        'United Kingdom': 'GB',
+        'UK': 'GB',
+        'Canada': 'CA',
+        'Australia': 'AU',
+        'Germany': 'DE',
+        'France': 'FR',
+        'India': 'IN',
+        'China': 'CN',
+        'Japan': 'JP',
+      };
+      region = regionMap[region] || region;
+
+      const requestBody = {
+        emission_factor: {
+          activity_id: params.activity_id,
+          data_version: '^27',
+          region: region,
+        },
+        parameters: params.parameters,
+      };
+
+      console.log(`      🌐 Climatiq API request:`, JSON.stringify(requestBody, null, 2));
+
       const response = await axios.post(
         `${this.climatiqBaseUrl}/estimate`,
-        {
-          emission_factor: {
-            activity_id: params.activity_id,
-            region: params.region,
-            source: 'DEFRA',
-            year: new Date().getFullYear(),
-          },
-          parameters: params.parameters,
-        },
+        requestBody,
         {
           headers: {
             Authorization: `Bearer ${this.climatiqApiKey}`,
@@ -411,10 +419,15 @@ class EmissionsCalculatorAgent {
         }
       );
 
+      console.log(`      ✅ Climatiq response: ${response.data.co2e} kg CO2e`);
       return response.data;
     } catch (error) {
       if (error.response?.status === 401) {
         throw new Error('Invalid Climatiq API key');
+      }
+      if (error.response?.data) {
+        console.error(`      ❌ Climatiq API error:`, error.response.data);
+        throw new Error(`Climatiq API error: ${error.response.data.message || error.message}`);
       }
       throw new Error(`Climatiq API error: ${error.message}`);
     }

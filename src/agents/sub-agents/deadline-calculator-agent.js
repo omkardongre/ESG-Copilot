@@ -70,49 +70,9 @@ Only include deadlines you found via web search. If no specific deadline found, 
     } catch (error) {
       console.error(`      ❌ [${this.name}] Error:`, error.message);
 
-      // Return fallback deadlines
-      return this.getFallbackDeadlines(regulations);
+      // NO FALLBACK - Production-ready: fail with clear error
+      throw new Error(`Failed to calculate deadlines via web search: ${error.message}`);
     }
-  }
-
-  /**
-   * Get fallback deadlines if web search fails
-   */
-  getFallbackDeadlines(regulations) {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-
-    const deadlines = regulations.map(reg => {
-      // Default deadline: end of current year or 6 months from now
-      let deadline = new Date(currentYear, 11, 31); // Dec 31 this year
-
-      // Specific deadlines for known regulations
-      if (reg.name.includes('CSRD')) {
-        deadline = new Date(currentYear + 1, 5, 30); // June 30 next year
-      } else if (reg.name.includes('SEC') || reg.name.includes('Climate')) {
-        deadline = new Date(currentYear, 11, 31); // Dec 31 this year
-      } else if (reg.name.includes('SB 253')) {
-        deadline = new Date(2026, 5, 1); // June 1, 2026 (Scope 1/2)
-      } else if (reg.name.includes('SB 261')) {
-        deadline = new Date(2026, 0, 1); // January 1, 2026
-      }
-
-      return {
-        regulation: reg.name,
-        deadline: deadline.toISOString().split('T')[0],
-        description: `${reg.name} compliance reporting`,
-        recurring: true,
-        frequency: 'annual',
-        nextDeadline: new Date(deadline.getFullYear() + 1, deadline.getMonth(), deadline.getDate())
-          .toISOString()
-          .split('T')[0],
-        source: 'Estimated based on typical reporting cycles',
-      };
-    });
-
-    console.log(`      ⚠️  [${this.name}] Using fallback deadlines (${deadlines.length})`);
-
-    return { deadlines };
   }
 }
 

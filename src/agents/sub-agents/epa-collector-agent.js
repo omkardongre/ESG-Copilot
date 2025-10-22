@@ -1,9 +1,8 @@
 // EPA Collector Sub-Agent
 // Fetches environmental data from EPA Envirofacts API
-// Uses Token Vault for API key management
+// EPA API is FREE and does NOT require an API key
 
 const axios = require('axios');
-const tokenVaultClient = require('../../utils/token-vault-client');
 
 class EPACollectorAgent {
   constructor() {
@@ -12,6 +11,7 @@ class EPACollectorAgent {
 
   /**
    * Execute EPA data collection
+   * EPA Envirofacts API is FREE and does NOT require an API key
    */
   async execute(state) {
     console.log(`      🏭 [${this.name}] Collecting EPA data...`);
@@ -25,18 +25,14 @@ class EPACollectorAgent {
     }
 
     try {
-      // Get EPA API key from Token Vault (Auth0 feature: Control the Tools)
-      const apiKey = await tokenVaultClient.getApiKey('epa_api_key');
+      // Search for facilities by state (more reliable than city)
+      const state_abbr = companyData.state || 'CA';
+      const searchUrl = `https://data.epa.gov/efservice/tri_facility/state_abbr/equals/${state_abbr}/rows/0:50/JSON`;
 
-      // Search for facilities by city
-      const city = companyData.city || companyData.city_name || 'LOS ANGELES';
-      const searchUrl = `https://data.epa.gov/efservice/tri_facility/city_name/${encodeURIComponent(city)}/rows/0:10/JSON`;
-
-      console.log(`      🔍 [${this.name}] Querying EPA API for city: ${city}`);
+      console.log(`      🔍 [${this.name}] Querying EPA API for state: ${state_abbr}`);
 
       const response = await axios.get(searchUrl, {
-        timeout: 10000,
-        headers: apiKey ? { 'X-API-Key': apiKey } : {},
+        timeout: 15000,
       });
 
       if (!response.data || response.data.length === 0) {
