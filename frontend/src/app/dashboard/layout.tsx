@@ -65,18 +65,6 @@ export default function DashboardLayout({
               Companies
             </Link>
             <Link
-              href="/dashboard/regulations"
-              className="px-3 py-4 text-sm font-medium text-gray-700 hover:text-green-600 border-b-2 border-transparent hover:border-green-600"
-            >
-              Regulations
-            </Link>
-            <Link
-              href="/dashboard/esg-data"
-              className="px-3 py-4 text-sm font-medium text-gray-700 hover:text-green-600 border-b-2 border-transparent hover:border-green-600"
-            >
-              ESG Data
-            </Link>
-            <Link
               href="/dashboard/reports"
               className="px-3 py-4 text-sm font-medium text-gray-700 hover:text-green-600 border-b-2 border-transparent hover:border-green-600"
             >

@@ -9,17 +9,25 @@ interface Message {
   sources?: any[];
 }
 
+interface Company {
+  company_id: string;
+  name: string;
+}
+
 export default function ChatPage() {
   const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Load suggested questions
+    // Load suggested questions and companies
     loadSuggestions();
+    fetchCompanies();
   }, []);
 
   useEffect(() => {
@@ -42,9 +50,40 @@ export default function ChatPage() {
     }
   };
 
+  const fetchCompanies = async () => {
+    try {
+      // Get access token
+      const tokenResponse = await fetch('/api/auth/token');
+      const { accessToken } = await tokenResponse.json();
+
+      const response = await fetch('http://localhost:3001/api/companies', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch companies');
+      
+      const data = await response.json();
+      setCompanies(data.companies || []);
+      
+      // Auto-select first company if available
+      if (data.companies && data.companies.length > 0) {
+        setSelectedCompany(data.companies[0].company_id);
+      }
+    } catch (error) {
+      console.error('Error fetching companies:', error);
+    }
+  };
+
   const sendMessage = async (messageText?: string) => {
     const text = messageText || input;
     if (!text.trim()) return;
+
+    if (!selectedCompany) {
+      alert('Please select a company first');
+      return;
+    }
 
     setLoading(true);
     setInput('');
@@ -54,17 +93,25 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMessage]);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/chatbot/chat`, {
+      // Get access token
+      const tokenResponse = await fetch('/api/auth/token');
+      const { accessToken } = await tokenResponse.json();
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.sub}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ 
+          message: text,
+          companyId: selectedCompany, // Use selected company
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get response');
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.message || 'Failed to get response');
       }
 
       const data = await response.json();
@@ -72,7 +119,7 @@ export default function ChatPage() {
       // Add assistant message
       const assistantMessage: Message = {
         role: 'assistant',
-        content: data.response,
+        content: data.message || data.response,
         sources: data.sources,
       };
       setMessages(prev => [...prev, assistantMessage]);
@@ -80,7 +127,7 @@ export default function ChatPage() {
       console.error('Error sending message:', error);
       const errorMessage: Message = {
         role: 'assistant',
-        content: 'Sorry, I encountered an error. Please make sure the backend API is running.',
+        content: `Sorry, I encountered an error: ${error.message}. Please make sure:\n1. Backend API is running\n2. Pinecone API key is added to Auth0 Token Vault\n3. You have generated reports to populate the knowledge base`,
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -104,13 +151,28 @@ export default function ChatPage() {
         </p>
       </div>
 
-      {/* Auth0 Feature Highlight */}
-      <div className="bg-purple-50 border border-purple-200 text-purple-700 px-4 py-3 rounded mb-4">
-        <p className="font-semibold">🤖 AI Agent: ESG Chatbot with RAG</p>
-        <p className="text-sm mt-1">
-          This chatbot uses permission-aware RAG to answer questions. It only accesses documents
-          you're authorized to see, demonstrating all 3 Auth0 features.
-        </p>
+      {/* Company Selector */}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Select Company Context
+        </label>
+        <select 
+          value={selectedCompany}
+          onChange={(e) => setSelectedCompany(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+        >
+          <option value="">Select a company...</option>
+          {companies.map(company => (
+            <option key={company.company_id} value={company.company_id}>
+              {company.name}
+            </option>
+          ))}
+        </select>
+        {selectedCompany && (
+          <p className="text-xs text-gray-500 mt-2">
+            💬 Chat will use data from: <strong>{companies.find(c => c.company_id === selectedCompany)?.name}</strong>
+          </p>
+        )}
       </div>
 
       {/* Chat Messages */}
@@ -162,10 +224,10 @@ export default function ChatPage() {
                       
                       {message.sources && message.sources.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-gray-300">
-                          <p className="text-xs font-semibold mb-2">Sources:</p>
+                          <p className="text-xs font-semibold mb-2">Sources ({message.sources.length} documents):</p>
                           {message.sources.map((source, i) => (
                             <p key={i} className="text-xs opacity-75">
-                              [{source.index}] {source.content.substring(0, 100)}...
+                              📄 {source.metadata?.section || 'Document'} - Score: {source.score?.toFixed(3) || 'N/A'}
                             </p>
                           ))}
                         </div>

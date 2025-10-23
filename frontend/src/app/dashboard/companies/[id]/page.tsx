@@ -31,6 +31,17 @@ export default function CompanyDetailsPage() {
   const [collectingData, setCollectingData] = useState(false);
   const [dataResult, setDataResult] = useState<any>(null);
   const [showDataModal, setShowDataModal] = useState(false);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [reportResult, setReportResult] = useState<any>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedFramework, setSelectedFramework] = useState<string>('GRI');
+  const [calculatingEmissions, setCalculatingEmissions] = useState(false);
+  const [emissionsResult, setEmissionsResult] = useState<any>(null);
+  const [showEmissionsModal, setShowEmissionsModal] = useState(false);
+  const [sendingOutreach, setSendingOutreach] = useState(false);
+  const [outreachResult, setOutreachResult] = useState<any>(null);
+  const [showOutreachModal, setShowOutreachModal] = useState(false);
+  const [outreachError, setOutreachError] = useState<string | null>(null);
 
   useEffect(() => {
     if (params.id) {
@@ -140,6 +151,136 @@ export default function CompanyDetailsPage() {
       alert(`❌ Error: ${err.message}`);
     } finally {
       setCollectingData(false);
+    }
+  };
+
+  const handleCalculateEmissions = async () => {
+    if (!company) return;
+
+    try {
+      setCalculatingEmissions(true);
+
+      const tokenResponse = await fetch('/api/auth/token');
+      const { accessToken } = await tokenResponse.json();
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/emissions/calculate/${company.company_id}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.message || 'Failed to calculate emissions');
+      }
+
+      const data = await response.json();
+      setEmissionsResult(data);
+      setShowEmissionsModal(true);
+    } catch (err: any) {
+      alert(`❌ Error: ${err.message}`);
+    } finally {
+      setCalculatingEmissions(false);
+    }
+  };
+
+  const handleSendOutreach = async () => {
+    if (!company) return;
+
+    try {
+      setSendingOutreach(true);
+
+      const tokenResponse = await fetch('/api/auth/token');
+      const { accessToken } = await tokenResponse.json();
+
+      // Get the latest report ID (in production, let user select)
+      const reportsResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/reports?companyId=${company.company_id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!reportsResponse.ok) {
+        throw new Error('No ESG reports found for this company. Please generate a report first using one of the report generation buttons below (GRI, SASB, or TCFD).');
+      }
+
+      const reportsData = await reportsResponse.json();
+      if (!reportsData.reports || reportsData.reports.length === 0) {
+        throw new Error('No ESG reports found for this company. Please generate a report first using one of the report generation buttons below (GRI, SASB, or TCFD).');
+      }
+
+      const latestReport = reportsData.reports[0];
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/outreach/send/${company.company_id}/${latestReport.report_id}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.message || 'Failed to send outreach');
+      }
+
+      const data = await response.json();
+      setOutreachResult(data);
+      setShowOutreachModal(true);
+      setOutreachError(null);
+    } catch (err: any) {
+      setOutreachError(err.message);
+      console.error('Outreach error:', err);
+    } finally {
+      setSendingOutreach(false);
+    }
+  };
+
+  const handleGenerateReport = async (framework: string) => {
+    if (!company) return;
+
+    try {
+      setGeneratingReport(true);
+      setSelectedFramework(framework);
+
+      const tokenResponse = await fetch('/api/auth/token');
+      const { accessToken } = await tokenResponse.json();
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/reports/generate/${company.company_id}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ framework }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate report');
+      }
+
+      const data = await response.json();
+      setReportResult(data);
+      setShowReportModal(true);
+    } catch (err: any) {
+      alert(`❌ Error: ${err.message}`);
+    } finally {
+      setGeneratingReport(false);
     }
   };
 
@@ -393,6 +534,197 @@ export default function CompanyDetailsPage() {
         </div>
       )}
 
+      {/* Report Generation Result Modal */}
+      {showReportModal && reportResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-2xl font-bold text-purple-600 flex items-center">
+                  <span className="mr-2">✅</span>
+                  ESG Report Generated!
+                </h3>
+                <button
+                  onClick={() => setShowReportModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Summary */}
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+                <p className="text-lg font-semibold text-purple-900">
+                  {reportResult.framework} Report for {reportResult.companyName}
+                </p>
+                <p className="text-sm text-purple-700 mt-1">
+                  Report ID: {reportResult.reportId}
+                </p>
+                <p className="text-sm text-purple-700">
+                  Status: <span className="font-semibold capitalize">{reportResult.status}</span>
+                </p>
+              </div>
+
+              {/* Report Content Preview */}
+              {reportResult.content && (
+                <div className="space-y-4">
+                  {/* Executive Summary */}
+                  {reportResult.content.executiveSummary && (
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 mb-2">📋 Executive Summary</h4>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {reportResult.content.executiveSummary.substring(0, 300)}...
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Sections */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {reportResult.content.environmental && (
+                      <div className="border border-green-200 bg-green-50 rounded-lg p-3">
+                        <p className="font-semibold text-green-900 text-sm">🌍 Environmental</p>
+                        <p className="text-xs text-green-700 mt-1">Section completed</p>
+                      </div>
+                    )}
+                    {reportResult.content.social && (
+                      <div className="border border-blue-200 bg-blue-50 rounded-lg p-3">
+                        <p className="font-semibold text-blue-900 text-sm">👥 Social</p>
+                        <p className="text-xs text-blue-700 mt-1">Section completed</p>
+                      </div>
+                    )}
+                    {reportResult.content.governance && (
+                      <div className="border border-purple-200 bg-purple-50 rounded-lg p-3">
+                        <p className="font-semibold text-purple-900 text-sm">⚖️ Governance</p>
+                        <p className="text-xs text-purple-700 mt-1">Section completed</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* AI Agent Info */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <p className="font-semibold text-gray-900 mb-2">🤖 Multi-Agent Generation</p>
+                    <ul className="text-sm text-gray-700 space-y-1">
+                      <li>✅ Executive Summary Writer Agent</li>
+                      <li>✅ Environmental Section Writer Agent</li>
+                      <li>✅ Social Section Writer Agent</li>
+                      <li>✅ Governance Section Writer Agent</li>
+                      <li>✅ Review & Critique Agent (Quality Check)</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* Footer Actions */}
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={() => router.push(`/dashboard/reports/${reportResult.reportId}`)}
+                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold"
+                >
+                  View Full Report
+                </button>
+                <button
+                  onClick={() => setShowReportModal(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Outreach Result Modal */}
+      {showOutreachModal && outreachResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-2xl font-bold text-pink-600 flex items-center">
+                  <span className="mr-2">✅</span>
+                  Outreach Completed!
+                </h3>
+                <button
+                  onClick={() => setShowOutreachModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Summary */}
+              <div className="bg-pink-50 border border-pink-200 rounded-lg p-4 mb-4">
+                <p className="text-lg font-semibold text-pink-900">
+                  📧 {outreachResult.outreach.emails_sent} email(s) sent successfully
+                </p>
+                <p className="text-sm text-pink-700 mt-1">
+                  via SendGrid API (Token Vault)
+                </p>
+              </div>
+
+              {/* Email Results */}
+              {outreachResult.outreach.email_results && outreachResult.outreach.email_results.length > 0 && (
+                <div className="mb-4">
+                  <p className="font-semibold text-gray-700 mb-2">Email Delivery Status:</p>
+                  <div className="space-y-2">
+                    {outreachResult.outreach.email_results.map((result: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className={`p-3 rounded-lg border ${
+                          result.status === 'sent'
+                            ? 'bg-green-50 border-green-200'
+                            : 'bg-red-50 border-red-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-gray-900">{result.email}</p>
+                            <p className="text-sm text-gray-600">
+                              {result.status === 'sent' ? '✅ Delivered' : '❌ Failed'}
+                            </p>
+                          </div>
+                          {result.sentAt && (
+                            <p className="text-xs text-gray-500">
+                              {new Date(result.sentAt).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                        {result.error && (
+                          <p className="text-sm text-red-600 mt-2">Error: {result.error}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Next Steps */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <p className="font-semibold text-blue-900 mb-2">📬 Next Steps:</p>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>• Check your email inbox for the ESG report notification</li>
+                  <li>• Email includes emissions data and executive summary</li>
+                  <li>• Click "View Full Report" button in email to access platform</li>
+                  <li>• Check spam folder if email not received</li>
+                </ul>
+              </div>
+
+              {/* Footer */}
+              <div className="mt-6">
+                <button
+                  onClick={() => setShowOutreachModal(false)}
+                  className="w-full px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 font-semibold"
+                >
+                  Got it!
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-8">
         <button
@@ -584,31 +916,223 @@ export default function CompanyDetailsPage() {
           </button>
 
           <button
-            onClick={() =>
-              alert(
-                'Report Generator Agent\n\nThis will:\n- Generate GRI/SASB/TCFD report\n- Create charts and visualizations\n- Format as PDF/Excel\n\n(Not yet implemented)'
-              )
-            }
-            className="w-full px-4 py-3 bg-purple-600 text-white rounded hover:bg-purple-700 text-left flex items-center justify-between"
+            onClick={handleCalculateEmissions}
+            disabled={calculatingEmissions}
+            className="w-full px-4 py-3 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:bg-orange-400 disabled:cursor-not-allowed text-left flex items-center justify-between transition-all"
           >
             <div>
-              <p className="font-semibold">3. Generate ESG Report (AI Agent)</p>
-              <p className="text-sm text-purple-100">
-                AI creates comprehensive ESG report with GRI/SASB/TCFD frameworks
+              <p className="font-semibold">3. Calculate Emissions (AI Agent)</p>
+              <p className="text-sm text-orange-100">
+                {calculatingEmissions
+                  ? '🌍 Calculating Scope 1, 2, 3 emissions with Climatiq API...'
+                  : 'Calculate carbon footprint using Climatiq API (Token Vault)'}
               </p>
             </div>
-            <span className="text-2xl">📄</span>
+            {calculatingEmissions ? (
+              <div className="flex items-center gap-2">
+                <svg
+                  className="animate-spin h-6 w-6 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+              </div>
+            ) : (
+              <span className="text-2xl">🌍</span>
+            )}
           </button>
-        </div>
-      </div>
 
-      {/* Auth0 Feature Notice */}
-      <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded">
-        <p className="font-semibold">🔐 Auth0 Feature: Control the Tools</p>
-        <p className="text-sm mt-1">
-          AI agents retrieve API keys from Token Vault in your JWT. Logged in as{' '}
-          <strong>{user?.email}</strong>
-        </p>
+          {/* Outreach Error Display */}
+          {outreachError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <span className="text-red-600 text-xl mr-3">⚠️</span>
+                <div className="flex-1">
+                  <p className="font-semibold text-red-900 mb-1">Cannot Send Outreach</p>
+                  <p className="text-sm text-red-700">{outreachError}</p>
+                  <button
+                    onClick={() => setOutreachError(null)}
+                    className="mt-2 text-xs text-red-600 hover:text-red-800 underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={handleSendOutreach}
+            disabled={sendingOutreach}
+            className="w-full px-4 py-3 bg-pink-600 text-white rounded hover:bg-pink-700 disabled:bg-pink-400 disabled:cursor-not-allowed text-left flex items-center justify-between transition-all"
+          >
+            <div>
+              <p className="font-semibold">4. Send to Stakeholders</p>
+              <p className="text-sm text-pink-100">
+                {sendingOutreach
+                  ? '📧 Sending email notifications via SendGrid...'
+                  : 'Send email notifications to stakeholders with emissions data'}
+              </p>
+            </div>
+            {sendingOutreach ? (
+              <div className="flex items-center gap-2">
+                <svg
+                  className="animate-spin h-6 w-6 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+              </div>
+            ) : (
+              <span className="text-2xl">📧</span>
+            )}
+          </button>
+
+          <div className="space-y-2">
+            <p className="font-semibold text-gray-900">5. Generate ESG Report (AI Agent)</p>
+            <p className="text-sm text-gray-600 mb-3">
+              Select a framework to generate a comprehensive ESG report
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <button
+                onClick={() => handleGenerateReport('GRI')}
+                disabled={generatingReport}
+                className="px-4 py-3 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-purple-400 disabled:cursor-not-allowed transition-all relative"
+              >
+                {generatingReport && selectedFramework === 'GRI' ? (
+                  <div className="flex flex-col items-center justify-center">
+                    <svg
+                      className="animate-spin h-5 w-5 text-white mb-1"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    <p className="text-xs">Generating...</p>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <p className="font-semibold">GRI</p>
+                    <p className="text-xs text-purple-100">Global Standard</p>
+                  </div>
+                )}
+              </button>
+              <button
+                onClick={() => handleGenerateReport('SASB')}
+                disabled={generatingReport}
+                className="px-4 py-3 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed transition-all relative"
+              >
+                {generatingReport && selectedFramework === 'SASB' ? (
+                  <div className="flex flex-col items-center justify-center">
+                    <svg
+                      className="animate-spin h-5 w-5 text-white mb-1"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    <p className="text-xs">Generating...</p>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <p className="font-semibold">SASB</p>
+                    <p className="text-xs text-indigo-100">Industry-Specific</p>
+                  </div>
+                )}
+              </button>
+              <button
+                onClick={() => handleGenerateReport('TCFD')}
+                disabled={generatingReport}
+                className="px-4 py-3 bg-violet-600 text-white rounded hover:bg-violet-700 disabled:bg-violet-400 disabled:cursor-not-allowed transition-all relative"
+              >
+                {generatingReport && selectedFramework === 'TCFD' ? (
+                  <div className="flex flex-col items-center justify-center">
+                    <svg
+                      className="animate-spin h-5 w-5 text-white mb-1"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    <p className="text-xs">Generating...</p>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <p className="font-semibold">TCFD</p>
+                    <p className="text-xs text-violet-100">Climate-Focused</p>
+                  </div>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

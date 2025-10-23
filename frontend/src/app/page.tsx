@@ -99,7 +99,7 @@ export default function Home() {
             </h2>
 
             {/* Dashboard Links */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid md:grid-cols-3 gap-6">
               <Link
                 href="/dashboard/companies"
                 className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition"
@@ -107,29 +107,7 @@ export default function Home() {
                 <div className="text-4xl mb-3">🏢</div>
                 <h3 className="text-lg font-semibold mb-2">Companies</h3>
                 <p className="text-gray-600 text-sm">
-                  Manage company profiles and discover new clients
-                </p>
-              </Link>
-
-              <Link
-                href="/dashboard/regulations"
-                className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition"
-              >
-                <div className="text-4xl mb-3">📋</div>
-                <h3 className="text-lg font-semibold mb-2">Regulations</h3>
-                <p className="text-gray-600 text-sm">
-                  AI-powered regulation research and compliance tracking
-                </p>
-              </Link>
-
-              <Link
-                href="/dashboard/esg-data"
-                className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition"
-              >
-                <div className="text-4xl mb-3">📊</div>
-                <h3 className="text-lg font-semibold mb-2">ESG Data</h3>
-                <p className="text-gray-600 text-sm">
-                  Collect environmental, social, and governance metrics
+                  Manage company profiles and ESG compliance
                 </p>
               </Link>
 
@@ -140,7 +118,18 @@ export default function Home() {
                 <div className="text-4xl mb-3">📄</div>
                 <h3 className="text-lg font-semibold mb-2">Reports</h3>
                 <p className="text-gray-600 text-sm">
-                  Generate GRI, SASB, and TCFD reports with AI
+                  View and manage all ESG reports
+                </p>
+              </Link>
+
+              <Link
+                href="/dashboard/chat"
+                className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition"
+              >
+                <div className="text-4xl mb-3">💬</div>
+                <h3 className="text-lg font-semibold mb-2">AI Chat</h3>
+                <p className="text-gray-600 text-sm">
+                  Ask questions about your ESG data
                 </p>
               </Link>
             </div>
