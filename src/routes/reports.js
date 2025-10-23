@@ -64,6 +64,45 @@ router.post(
 );
 
 /**
+ * GET /api/reports
+ * Get all reports (if no companyId) or reports for specific company
+ */
+router.get(
+  '/',
+  requirePermission('read:reports'),
+  auditMiddleware('list_reports', 'reports'),
+  async (req, res) => {
+    try {
+      const { companyId } = req.query;
+
+      // If companyId provided, get reports for that company
+      if (companyId) {
+        const reports = await reportGeneratorService.getCompanyReports(companyId);
+        return res.json({
+          companyId,
+          reports,
+          count: reports.length,
+        });
+      }
+
+      // Otherwise, get ALL reports across all companies
+      const allReports = await reportGeneratorService.getAllReports();
+
+      res.json({
+        reports: allReports,
+        count: allReports.length,
+      });
+    } catch (error) {
+      console.error('Error fetching reports:', error);
+      res.status(500).json({ 
+        error: 'Failed to fetch reports',
+        details: error.message 
+      });
+    }
+  }
+);
+
+/**
  * GET /api/reports/:reportId
  * Get report by ID
  */

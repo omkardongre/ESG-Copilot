@@ -8,6 +8,7 @@ const bigQueryClient = require('../utils/bigquery-client');
 const companyService = require('./company-service');
 const regulationResearchService = require('./regulation-research-service');
 const esgDataCollectionService = require('./esg-data-collection-service');
+const RAGService = require('./rag-service');
 
 // Import writer sub-agents
 const executiveSummaryWriter = require('../agents/sub-agents/executive-summary-writer-agent');
@@ -41,7 +42,9 @@ class ReportGeneratorService {
     const state = { company, regulations, esgData, framework };
 
     // Step 2: Generate report content using multi-agent orchestration with review loop
-    const reportContent = await this.generateReportContentWithReview(state);
+    // Read max iterations from environment variable (default: 3)
+    const maxIterations = parseInt(process.env.REPORT_REFINEMENT_ITERATIONS || '3', 10);
+    const reportContent = await this.generateReportContentWithReview(state, maxIterations);
 
     // Step 3: Create report record
     const reportId = uuidv4();
@@ -59,6 +62,15 @@ class ReportGeneratorService {
     };
 
     await bigQueryClient.insert('reports', [reportRecord]);
+
+    // Step 4: Ingest report into Pinecone for RAG
+    console.log(`\n📊 Ingesting report into Pinecone for RAG...`);
+    await this.ingestReportToPinecone({
+      reportId,
+      companyId,
+      framework,
+      content: reportContent,
+    });
 
     return {
       reportId,
@@ -276,11 +288,11 @@ Write professionally and use actual data provided. Be specific and analytical.
       SELECT r.*, c.name as company_name, c.industry, c.country
       FROM \`${bigQueryClient.datasetId}.reports\` r
       JOIN \`${bigQueryClient.datasetId}.companies\` c ON r.company_id = c.company_id
-      WHERE r.report_id = @reportId
+      WHERE r.report_id = '${reportId}'
       LIMIT 1
     `;
 
-    const rows = await bigQueryClient.query(query, [reportId]);
+    const rows = await bigQueryClient.query(query);
     
     if (rows.length === 0) {
       throw new Error('Report not found');
@@ -289,8 +301,12 @@ Write professionally and use actual data provided. Be specific and analytical.
     const report = rows[0];
     const content = JSON.parse(report.content);
 
-    // Create PDF
-    const doc = new PDFDocument({ margin: 50 });
+    // Create PDF with beautiful formatting
+    const doc = new PDFDocument({ 
+      margin: 50,
+      size: 'A4',
+      bufferPages: true
+    });
     const pdfPath = path.join(__dirname, '../../reports', `${reportId}.pdf`);
 
     // Ensure reports directory exists
@@ -302,84 +318,186 @@ Write professionally and use actual data provided. Be specific and analytical.
     const stream = fs.createWriteStream(pdfPath);
     doc.pipe(stream);
 
-    // Title Page
-    doc.fontSize(24).text(`${report.framework} Sustainability Report`, { align: 'center' });
-    doc.moveDown();
-    doc.fontSize(18).text(report.company_name, { align: 'center' });
-    doc.moveDown();
-    doc.fontSize(12).text(`Reporting Period: ${report.reporting_period}`, { align: 'center' });
-    doc.text(`Industry: ${report.industry}`, { align: 'center' });
-    doc.text(`Country: ${report.country}`, { align: 'center' });
+    // Color palette
+    const colors = {
+      primary: '#059669',    // Green
+      secondary: '#0284c7',  // Blue
+      accent: '#dc2626',     // Red
+      text: '#1f2937',       // Dark gray
+      lightGray: '#6b7280'   // Light gray
+    };
+
+    // Title Page with gradient effect
+    doc.rect(0, 0, doc.page.width, 250).fill('#f0fdf4');
+    doc.fillColor(colors.primary)
+       .fontSize(32)
+       .font('Helvetica-Bold')
+       .text(`🌍 ${report.framework} Sustainability Report`, 50, 80, { align: 'center' });
+    
+    doc.fillColor(colors.text)
+       .fontSize(24)
+       .font('Helvetica')
+       .text(report.company_name, { align: 'center' });
+    
     doc.moveDown(2);
+    doc.fillColor(colors.lightGray)
+       .fontSize(12)
+       .text(`📅 Reporting Period: ${report.reporting_period}`, { align: 'center' })
+       .text(`🏭 Industry: ${report.industry}`, { align: 'center' })
+       .text(`🌐 Country: ${report.country}`, { align: 'center' });
 
     // Executive Summary
     doc.addPage();
-    doc.fontSize(16).text('Executive Summary', { underline: true });
-    doc.moveDown();
-    doc.fontSize(11).text(content.executiveSummary, { align: 'justify' });
-    doc.moveDown(2);
+    doc.fillColor(colors.primary)
+       .fontSize(20)
+       .font('Helvetica-Bold')
+       .text('📋 Executive Summary', 50, 50);
+    
+    doc.moveTo(50, 80).lineTo(545, 80).strokeColor(colors.primary).stroke();
+    doc.moveDown(1);
+    
+    doc.fillColor(colors.text)
+       .fontSize(11)
+       .font('Helvetica')
+       .text(content.executiveSummary, { align: 'justify' });
 
     // Environmental Section
     doc.addPage();
-    doc.fontSize(16).text('Environmental Performance', { underline: true });
-    doc.moveDown();
-    doc.fontSize(11).text(content.environmental.overview, { align: 'justify' });
-    doc.moveDown();
+    doc.rect(0, 0, doc.page.width, 100).fill('#ecfdf5');
+    doc.fillColor(colors.primary)
+       .fontSize(20)
+       .font('Helvetica-Bold')
+       .text('🌱 Environmental Performance', 50, 40);
     
-    doc.fontSize(13).text('Key Metrics:', { underline: true });
+    doc.moveTo(50, 70).lineTo(545, 70).strokeColor(colors.primary).stroke();
+    doc.moveDown(2);
+    
+    doc.fillColor(colors.text)
+       .fontSize(11)
+       .font('Helvetica')
+       .text(content.environmental.overview, 50, 110, { align: 'justify' });
+    
+    doc.moveDown(1.5);
+    doc.fillColor(colors.secondary)
+       .fontSize(14)
+       .font('Helvetica-Bold')
+       .text('📊 Key Metrics');
     doc.moveDown(0.5);
-    content.environmental.keyMetrics.forEach(metric => {
-      doc.fontSize(11).text(`• ${metric.metric}: ${metric.value}`, { indent: 20 });
-      doc.fontSize(10).text(`  ${metric.analysis}`, { indent: 40 });
+    
+    content.environmental.keyMetrics.forEach((metric, idx) => {
+      doc.fillColor(colors.primary)
+         .fontSize(11)
+         .font('Helvetica-Bold')
+         .text(`${idx + 1}. ${metric.metric}: ${metric.value}`, { indent: 20 });
+      doc.fillColor(colors.lightGray)
+         .fontSize(10)
+         .font('Helvetica')
+         .text(metric.analysis, { indent: 40, align: 'justify' });
       doc.moveDown(0.5);
     });
 
     // Social Section
     doc.addPage();
-    doc.fontSize(16).text('Social Performance', { underline: true });
-    doc.moveDown();
-    doc.fontSize(11).text(content.social.overview, { align: 'justify' });
-    doc.moveDown();
+    doc.rect(0, 0, doc.page.width, 100).fill('#eff6ff');
+    doc.fillColor(colors.secondary)
+       .fontSize(20)
+       .font('Helvetica-Bold')
+       .text('👥 Social Performance', 50, 40);
     
-    doc.fontSize(13).text('Key Metrics:', { underline: true });
+    doc.moveTo(50, 70).lineTo(545, 70).strokeColor(colors.secondary).stroke();
+    doc.moveDown(2);
+    
+    doc.fillColor(colors.text)
+       .fontSize(11)
+       .font('Helvetica')
+       .text(content.social.overview, 50, 110, { align: 'justify' });
+    
+    doc.moveDown(1.5);
+    doc.fillColor(colors.secondary)
+       .fontSize(14)
+       .font('Helvetica-Bold')
+       .text('📊 Key Metrics');
     doc.moveDown(0.5);
-    content.social.keyMetrics.forEach(metric => {
-      doc.fontSize(11).text(`• ${metric.metric}: ${metric.value}`, { indent: 20 });
-      doc.fontSize(10).text(`  ${metric.analysis}`, { indent: 40 });
+    
+    content.social.keyMetrics.forEach((metric, idx) => {
+      doc.fillColor(colors.secondary)
+         .fontSize(11)
+         .font('Helvetica-Bold')
+         .text(`${idx + 1}. ${metric.metric}: ${metric.value}`, { indent: 20 });
+      doc.fillColor(colors.lightGray)
+         .fontSize(10)
+         .font('Helvetica')
+         .text(metric.analysis, { indent: 40, align: 'justify' });
       doc.moveDown(0.5);
     });
 
     // Governance Section
     doc.addPage();
-    doc.fontSize(16).text('Governance', { underline: true });
-    doc.moveDown();
-    doc.fontSize(11).text(content.governance.overview, { align: 'justify' });
-    doc.moveDown();
+    doc.rect(0, 0, doc.page.width, 100).fill('#fef2f2');
+    doc.fillColor(colors.accent)
+       .fontSize(20)
+       .font('Helvetica-Bold')
+       .text('⚖️ Governance', 50, 40);
     
-    doc.fontSize(13).text('Key Metrics:', { underline: true });
+    doc.moveTo(50, 70).lineTo(545, 70).strokeColor(colors.accent).stroke();
+    doc.moveDown(2);
+    
+    doc.fillColor(colors.text)
+       .fontSize(11)
+       .font('Helvetica')
+       .text(content.governance.overview, 50, 110, { align: 'justify' });
+    
+    doc.moveDown(1.5);
+    doc.fillColor(colors.accent)
+       .fontSize(14)
+       .font('Helvetica-Bold')
+       .text('📊 Key Metrics');
     doc.moveDown(0.5);
-    content.governance.keyMetrics.forEach(metric => {
-      doc.fontSize(11).text(`• ${metric.metric}: ${metric.value}`, { indent: 20 });
-      doc.fontSize(10).text(`  ${metric.analysis}`, { indent: 40 });
+    
+    content.governance.keyMetrics.forEach((metric, idx) => {
+      doc.fillColor(colors.accent)
+         .fontSize(11)
+         .font('Helvetica-Bold')
+         .text(`${idx + 1}. ${metric.metric}: ${metric.value}`, { indent: 20 });
+      doc.fillColor(colors.lightGray)
+         .fontSize(10)
+         .font('Helvetica')
+         .text(metric.analysis, { indent: 40, align: 'justify' });
       doc.moveDown(0.5);
     });
 
     // Recommendations
     doc.addPage();
-    doc.fontSize(16).text('Recommendations', { underline: true });
-    doc.moveDown();
+    doc.fillColor(colors.primary)
+       .fontSize(20)
+       .font('Helvetica-Bold')
+       .text('💡 Recommendations', 50, 50);
+    
+    doc.moveTo(50, 80).lineTo(545, 80).strokeColor(colors.primary).stroke();
+    doc.moveDown(1.5);
+    
     content.recommendations.forEach((rec, index) => {
-      doc.fontSize(11).text(`${index + 1}. ${rec}`, { indent: 20 });
+      doc.fillColor(colors.text)
+         .fontSize(11)
+         .font('Helvetica')
+         .text(`${index + 1}. ${rec}`, { indent: 20, align: 'justify' });
       doc.moveDown(0.5);
     });
 
-    // Footer
-    doc.fontSize(8).text(
-      `Generated by ESG Copilot on ${new Date().toLocaleDateString()}`,
-      50,
-      doc.page.height - 50,
-      { align: 'center' }
-    );
+    // Footer on every page
+    const pages = doc.bufferedPageRange();
+    for (let i = 0; i < pages.count; i++) {
+      doc.switchToPage(i);
+      doc.fillColor(colors.lightGray)
+         .fontSize(8)
+         .font('Helvetica')
+         .text(
+           `Generated by ESG Copilot 🚀 | ${new Date().toLocaleDateString()} | Page ${i + 1} of ${pages.count}`,
+           50,
+           doc.page.height - 50,
+           { align: 'center' }
+         );
+    }
 
     doc.end();
 
@@ -400,20 +518,47 @@ Write professionally and use actual data provided. Be specific and analytical.
       SELECT r.*, c.name as company_name
       FROM \`${bigQueryClient.datasetId}.reports\` r
       JOIN \`${bigQueryClient.datasetId}.companies\` c ON r.company_id = c.company_id
-      WHERE r.report_id = @reportId
+      WHERE r.report_id = '${reportId}'
       LIMIT 1
     `;
 
-    const rows = await bigQueryClient.query(query, [reportId]);
+    const rows = await bigQueryClient.query(query);
     
     if (rows.length === 0) {
       throw new Error('Report not found');
     }
 
     const report = rows[0];
-    report.content = JSON.parse(report.content);
+    
+    // Parse content if it's a string
+    if (typeof report.content === 'string') {
+      report.content = JSON.parse(report.content);
+    }
     
     return report;
+  }
+
+  /**
+   * Get all reports across all companies
+   */
+  async getAllReports() {
+    const query = `
+      SELECT 
+        r.report_id, 
+        r.company_id,
+        c.name as company_name,
+        r.framework, 
+        r.reporting_period, 
+        r.status, 
+        r.generated_at, 
+        r.generated_by,
+        r.approved_at
+      FROM \`${bigQueryClient.datasetId}.reports\` r
+      JOIN \`${bigQueryClient.datasetId}.companies\` c ON r.company_id = c.company_id
+      ORDER BY r.generated_at DESC
+    `;
+
+    return await bigQueryClient.query(query);
   }
 
   /**
@@ -421,13 +566,23 @@ Write professionally and use actual data provided. Be specific and analytical.
    */
   async getCompanyReports(companyId) {
     const query = `
-      SELECT report_id, framework, reporting_period, status, generated_at, approved_at
-      FROM \`${bigQueryClient.datasetId}.reports\`
-      WHERE company_id = @companyId
-      ORDER BY generated_at DESC
+      SELECT 
+        r.report_id, 
+        r.company_id,
+        c.name as company_name,
+        r.framework, 
+        r.reporting_period, 
+        r.status, 
+        r.generated_at, 
+        r.generated_by,
+        r.approved_at
+      FROM \`${bigQueryClient.datasetId}.reports\` r
+      JOIN \`${bigQueryClient.datasetId}.companies\` c ON r.company_id = c.company_id
+      WHERE r.company_id = '${companyId}'
+      ORDER BY r.generated_at DESC
     `;
 
-    return await bigQueryClient.query(query, [companyId]);
+    return await bigQueryClient.query(query);
   }
 
   /**
@@ -437,16 +592,180 @@ Write professionally and use actual data provided. Be specific and analytical.
     const query = `
       UPDATE \`${bigQueryClient.datasetId}.reports\`
       SET status = 'approved',
-          approved_by = @userId,
+          approved_by = '${userId}',
           approved_at = CURRENT_TIMESTAMP()
-      WHERE report_id = @reportId
+      WHERE report_id = '${reportId}'
     `;
 
-    await bigQueryClient.query(query, [reportId, userId]);
+    await bigQueryClient.query(query);
     
     console.log(`✅ Report approved: ${reportId} by ${userId}`);
     
     return await this.getReport(reportId);
+  }
+
+  /**
+   * ✅ PRODUCTION: Ingest report into Pinecone for RAG
+   */
+  async ingestReportToPinecone({ reportId, companyId, framework, content }) {
+    try {
+      // Get API keys from environment
+      const pineconeApiKey = process.env.PINECONE_API_KEY;
+      const googleApiKey = process.env.GOOGLE_API_KEY;
+
+      if (!pineconeApiKey || !googleApiKey) {
+        console.warn('   ⚠️  Pinecone or Google API key not found - skipping RAG ingestion');
+        return;
+      }
+
+      // Initialize RAG service
+      const ragService = new RAGService(pineconeApiKey, googleApiKey);
+
+      // Extract text chunks from report content
+      const documents = [];
+      
+      console.log(`   🔍 Debug  - Report content keys:`, Object.keys(content));
+
+      // 1. Executive Summary
+      if (content.executiveSummary) {
+        documents.push({
+          id: `${reportId}-executive-summary`,
+          text: content.executiveSummary,
+          metadata: {
+            company_id: companyId,
+            report_id: reportId,
+            framework: framework,
+            section: 'Executive Summary',
+            type: 'report',
+          },
+        });
+      }
+
+      // 2. Environmental Section
+      if (content.environmental) {
+        const envText = this.extractSectionText(content.environmental);
+        if (envText) {
+          documents.push({
+            id: `${reportId}-environmental`,
+            text: envText,
+            metadata: {
+              company_id: companyId,
+              report_id: reportId,
+              framework: framework,
+              section: 'Environmental',
+              type: 'report',
+            },
+          });
+        }
+      }
+
+      // 3. Social Section
+      if (content.social) {
+        const socialText = this.extractSectionText(content.social);
+        if (socialText) {
+          documents.push({
+            id: `${reportId}-social`,
+            text: socialText,
+            metadata: {
+              company_id: companyId,
+              report_id: reportId,
+              framework: framework,
+              section: 'Social',
+              type: 'report',
+            },
+          });
+        }
+      }
+
+      // 4. Governance Section
+      if (content.governance) {
+        const govText = this.extractSectionText(content.governance);
+        if (govText) {
+          documents.push({
+            id: `${reportId}-governance`,
+            text: govText,
+            metadata: {
+              company_id: companyId,
+              report_id: reportId,
+              framework: framework,
+              section: 'Governance',
+              type: 'report',
+            },
+          });
+        }
+      }
+
+      // Ingest all documents into Pinecone
+      console.log(`   📤 Ingesting ${documents.length} sections into Pinecone...`);
+      await ragService.batchAddDocuments({
+        documents,
+        companyId,
+        userId: 'system', // System-generated report
+      });
+      console.log(`   ✅ Report ingested into Pinecone successfully`);
+
+    } catch (error) {
+      console.error('   ❌ Error ingesting report to Pinecone:', error.message);
+      // Don't throw - report generation should succeed even if RAG ingestion fails
+    }
+  }
+
+  /**
+   * Extract text from report section
+   */
+  extractSectionText(section) {
+    if (!section) return '';
+
+    let text = '';
+
+    // Add overview/narrative
+    if (section.overview) {
+      text += section.overview + '\n\n';
+    } else if (section.narrative) {
+      text += section.narrative + '\n\n';
+    }
+
+    // Add key metrics
+    if (section.keyMetrics && Array.isArray(section.keyMetrics)) {
+      text += '**Key Metrics:**\n';
+      section.keyMetrics.forEach(metric => {
+        text += `- ${metric.metric}: ${metric.value}\n`;
+        if (metric.analysis) {
+          text += `  ${metric.analysis}\n`;
+        }
+      });
+      text += '\n';
+    }
+
+    // Add initiatives
+    if (section.initiatives && Array.isArray(section.initiatives)) {
+      text += '**Initiatives:**\n';
+      section.initiatives.forEach(initiative => {
+        text += `- ${initiative}\n`;
+      });
+      text += '\n';
+    }
+
+    // Add targets
+    if (section.targets && Array.isArray(section.targets)) {
+      text += '**Targets:**\n';
+      section.targets.forEach(target => {
+        text += `- ${target}\n`;
+      });
+      text += '\n';
+    }
+
+    // Fallback: Add metrics if exists (old structure)
+    if (section.metrics && Array.isArray(section.metrics)) {
+      section.metrics.forEach(metric => {
+        text += `${metric.name}: ${metric.value} ${metric.unit || ''}\n`;
+        if (metric.description) {
+          text += `${metric.description}\n`;
+        }
+      });
+    }
+
+    return text.trim();
   }
 }
 
