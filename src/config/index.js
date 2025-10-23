@@ -24,10 +24,12 @@ module.exports = {
   },
 
   // Gemini AI
+  // Using Gemini 2.5 Flash for best JSON generation and performance
+  // Fallback: gemini-2.0-flash-exp (if 2.5 not available)
   gemini: {
     apiKey: process.env.GOOGLE_API_KEY,
-    model: process.env.MODEL || 'gemini-2.0-flash-exp',
-    temperature: parseFloat(process.env.TEMPERATURE) || 0.2,
+    model: process.env.MODEL || 'gemini-2.5-flash',
+    temperature: parseFloat(process.env.TEMPERATURE) || 0.3, // Lower for consistent JSON
   },
 
   // Email

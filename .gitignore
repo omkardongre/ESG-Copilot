@@ -4,7 +4,7 @@ package-lock.json
 
 # Environment
 .env
-.env.local
+# .env.local
 
 # Secrets
 .secrets/
@@ -27,3 +27,8 @@ Thumbs.db
 dist/
 build/
 
+# Development
+temp/
+docs/
+test/
+scripts/

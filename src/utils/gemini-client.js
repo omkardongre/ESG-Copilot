@@ -5,8 +5,10 @@ const config = require('../config');
 class GeminiClient {
   constructor() {
     this.genAI = new GoogleGenerativeAI(config.gemini.apiKey);
+    
+    // Use Gemini 2.5 Flash for best JSON generation
     this.model = this.genAI.getGenerativeModel({
-      model: config.gemini.model,
+      model: 'gemini-2.5-flash',
     });
     
     // Model with Google Search grounding for real-time web search
@@ -39,21 +41,59 @@ class GeminiClient {
   }
 
   /**
-   * Generate structured JSON output
+   * Generate structured JSON output with production-level error handling
+   * Uses Gemini 2.5 Flash with retry logic and robust parsing
    */
   async generateJSON(prompt, options = {}) {
-    const jsonPrompt = `${prompt}\n\nRespond with valid JSON only, no markdown or explanation.`;
-    const text = await this.generate(jsonPrompt, options);
-    
-    try {
-      // Remove markdown code blocks if present
-      const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      return JSON.parse(cleaned);
-    } catch (error) {
-      console.error('JSON parse error:', error);
-      console.error('Raw response:', text);
-      throw new Error('Failed to parse JSON response from Gemini');
+    const maxRetries = 3;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await this.model.generateContent({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: options.temperature || 0.3, // Lower temp for more consistent JSON
+            maxOutputTokens: options.maxTokens || 8192,
+            responseMimeType: 'application/json', // Native JSON mode
+          },
+        });
+
+        const response = result.response;
+        let text = response.text();
+        
+        // Clean the response (remove any BOM, whitespace, etc.)
+        text = text.trim();
+        
+        // Try to parse
+        try {
+          return JSON.parse(text);
+        } catch (parseError) {
+          // If JSON.parse fails, try to extract JSON from the response
+          console.warn(`⚠️  JSON parse attempt ${attempt} failed, trying extraction...`);
+          
+          // Try to find JSON object in the response
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            return JSON.parse(jsonMatch[0]);
+          }
+          
+          throw parseError;
+        }
+      } catch (error) {
+        lastError = error;
+        console.error(`❌ JSON generation attempt ${attempt}/${maxRetries} failed:`, error.message);
+        
+        if (attempt < maxRetries) {
+          console.log(`🔄 Retrying in ${attempt} second(s)...`);
+          await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+        }
+      }
     }
+
+    // All retries failed
+    console.error('💥 All JSON generation attempts failed');
+    throw new Error(`Failed to generate valid JSON after ${maxRetries} attempts: ${lastError?.message}`);
   }
 
   /**

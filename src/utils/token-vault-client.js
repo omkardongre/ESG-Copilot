@@ -12,38 +12,33 @@ class TokenVaultClient {
   }
 
   /**
-   * Get API key from Auth0 Token Vault
+   * Get API key from Auth0 Token Vault (JWT custom claims)
    * This demonstrates "Control the Tools" - Auth0 feature #2
+   * 
+   * PRODUCTION-ONLY: Reads from JWT custom claims (NO fallbacks)
    */
-  async getApiKey(keyName) {
+  async getApiKey(keyName, req = null) {
     try {
-      // In production, this would retrieve from Auth0 Token Vault
-      // For now, we'll use environment variables as a fallback
-      // TODO: Implement actual Token Vault API when Auth0 provides it
-      
       console.log(`🔐 Retrieving API key from Token Vault: ${keyName}`);
       
-      // Map key names to environment variables
-      const keyMap = {
-        'epa_api_key': process.env.EPA_API_KEY,
-        'climatiq_api_key': process.env.CLIMATIQ_API_KEY,
-        'companies_house_api_key': process.env.COMPANIES_HOUSE_API_KEY,
-      };
-
-      const apiKey = keyMap[keyName];
+      // Get from JWT custom claims
+      if (!req || !req.auth?.payload) {
+        throw new Error(`No JWT found. User must be authenticated via Auth0.`);
+      }
+      
+      const apiKeys = req.auth.payload['https://esg-copilot.com/api_keys'] || {};
+      const apiKey = apiKeys[keyName];
       
       if (!apiKey) {
-        console.warn(`⚠️  API key not found in Token Vault: ${keyName}`);
-        return null;
+        throw new Error(`API key '${keyName}' not found in JWT Token Vault. Configure in Auth0 Actions → Secrets.`);
       }
-
-      // Log that key was retrieved (but don't log the actual key!)
-      console.log(`✅ API key retrieved successfully: ${keyName}`);
       
+      console.log(`✅ API key retrieved from JWT Token Vault: ${keyName}`);
       return apiKey;
+      
     } catch (error) {
-      console.error(`❌ Error retrieving API key from Token Vault: ${keyName}`, error);
-      return null;
+      console.error(`❌ Error retrieving API key from Token Vault: ${keyName}`, error.message);
+      throw error;
     }
   }
 

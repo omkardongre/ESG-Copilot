@@ -10,8 +10,8 @@ class QueryAuthorizationEnforcer {
     this.name = 'QueryAuthorizationEnforcer';
     
     this.bigquery = new BigQuery({
-      projectId: process.env.GCP_PROJECT_ID,
-      keyFilename: process.env.GCP_KEY_FILE,
+      projectId: process.env.GOOGLE_CLOUD_PROJECT,
+      keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
     });
 
     this.datasetId = process.env.BIGQUERY_DATASET || 'esg_platform';

@@ -110,17 +110,52 @@ const requireCompanyAccess = (req, res, next) => {
 };
 
 /**
- * Extract user info from JWT
+ * Extract user info from JWT and log Token Vault contents
  */
 const extractUserInfo = (req, res, next) => {
   if (req.auth?.payload) {
+    // Extract API keys from Token Vault
+    const apiKeys = req.auth.payload['https://esg-copilot.com/api_keys'] || {};
+    
     req.user = {
       id: req.auth.payload.sub,
       email: req.auth.payload['https://esg-copilot.com/email'] || req.auth.payload.email,
       roles: req.auth.payload['https://esg-copilot.com/roles'] || [],
       companyId: req.auth.payload['https://esg-copilot.com/company_id'],
       permissions: req.auth.payload.permissions || [],
+      api_keys: apiKeys, // ✅ ADD API KEYS TO req.user
     };
+    
+    // 🔍 LOG TOKEN VAULT CONTENTS FOR VERIFICATION
+    // console.log('\n🔐 ===== AUTH0 TOKEN VAULT VERIFICATION =====');
+    // console.log('User:', req.user.email);
+    // console.log('Roles:', req.user.roles);
+    // console.log('Permissions:', req.user.permissions);
+    // console.log('\n🔍 JWT Custom Claims:');
+    // console.log('  - https://esg-copilot.com/email:', req.auth.payload['https://esg-copilot.com/email'] || '❌ Missing');
+    // console.log('  - https://esg-copilot.com/roles:', req.auth.payload['https://esg-copilot.com/roles'] || '❌ Missing');
+    // console.log('  - https://esg-copilot.com/api_keys:', apiKeys ? 'Object present' : '❌ Missing');
+    
+    // 🐛 DEBUG: Show actual api_keys object
+    // if (Object.keys(apiKeys).length > 0) {
+    //   // console.log('\n🐛 DEBUG - api_keys object contents:');
+    //   console.log(JSON.stringify(apiKeys, null, 2));
+    // } else {
+    //   console.log('\n⚠️  WARNING: api_keys object is EMPTY!');
+    //   console.log('   This means either:');
+    //   console.log('   1. Auth0 Action secrets are not configured');
+    //   console.log('   2. User does not have execute:agents permission');
+    //   console.log('   3. Auth0 Action is not deployed/applied to Login flow');
+    // }
+    
+    // console.log('\n🔑 API Keys in JWT Token Vault:');
+    // console.log('  - climatiq_api_key:', apiKeys.climatiq_api_key ? '✅ Present (hidden)' : '❌ Missing');
+    // console.log('  - carbon_interface_api_key:', apiKeys.carbon_interface_api_key ? '✅ Present (hidden)' : '❌ Missing');
+    // console.log('  - epa_api_key:', apiKeys.epa_api_key ? '✅ Present (hidden)' : '❌ Missing');
+    // console.log('  - google_maps_api_key:', apiKeys.google_maps_api_key ? '✅ Present (hidden)' : '❌ Missing');
+    // // PINECONE_API_KEY
+    // console.log('  - pinecone_api_key:', apiKeys.pinecone_api_key ? '✅ Present (hidden)' : '❌ Missing');
+    // console.log('==========================================\n');
   }
   next();
 };

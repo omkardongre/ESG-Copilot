@@ -392,7 +392,7 @@ class TokenVaultClient {
       'google_maps': process.env.GOOGLE_MAPS_API_KEY,
       'epa': process.env.EPA_API_KEY,
       'google_ai': process.env.GOOGLE_API_KEY,
-      'bigquery': process.env.GCP_PROJECT_ID,
+      'bigquery': process.env.GOOGLE_CLOUD_PROJECT,
     };
 
     return {

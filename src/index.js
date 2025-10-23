@@ -34,9 +34,12 @@ app.use('/api/agents', require('./routes/agents'));
 app.use('/api/companies', require('./routes/companies'));
 app.use('/api/regulations', require('./routes/regulations'));
 app.use('/api/esg-data', require('./routes/esg-data'));
+app.use('/api/emissions', require('./routes/emissions')); // ✅ Emissions Calculator Agent
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/knowledge-base', require('./routes/knowledge-base'));
 app.use('/api/chatbot', require('./routes/chatbot'));
+app.use('/api/outreach', require('./routes/outreach'));
+app.use('/api/chat', require('./routes/chat')); // ✅ AI Chat with RAG
 
 // Error handling
 app.use((err, req, res, next) => {
