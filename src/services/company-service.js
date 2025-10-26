@@ -1,7 +1,8 @@
 // Company Discovery Service (F1)
-const { v4: uuidv4 } = require('uuid');
-const bigQueryClient = require('../utils/bigquery-client');
-const { ManagementClient } = require('auth0');
+const { v4: uuidv4 } = require("uuid");
+const bigQueryClient = require("../utils/bigquery-client");
+const { ManagementClient } = require("auth0");
+const fgaStoreService = require("./fga-store-service");
 
 class CompanyService {
   constructor() {
@@ -16,9 +17,9 @@ class CompanyService {
   /**
    * Create a new company
    */
-  async createCompany(data, userId, userRole) {
+  async createCompany(data, userId, userRole, userEmail) {
     const companyId = uuidv4();
-    
+
     const company = {
       company_id: companyId,
       name: data.name,
@@ -28,27 +29,79 @@ class CompanyService {
       website: data.website || null,
       employees: data.employees || null,
       revenue: data.revenue || null,
-      public_status: data.publicStatus || 'private',
+      public_status: data.publicStatus || "private",
       compliance_requirements: data.complianceRequirements || [],
-      status: 'active',
+      status: "active",
       created_by: userId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    await bigQueryClient.insert('companies', [company]);
+    await bigQueryClient.insert("companies", [company]);
 
     // ✅ Auth0 Integration: Update Company Admin's app_metadata with companyId
-    if (userRole && userRole.includes('Company Admin')) {
+    if (userRole && userRole.includes("Company Admin")) {
       try {
-        await this.managementClient.updateAppMetadata({ id: userId }, {
-          companyId: companyId,
-          companyName: data.name,
-        });
-        console.log(`✅ Updated Auth0 app_metadata for Company Admin ${userId} with companyId: ${companyId}`);
+        await this.managementClient.users.update(
+          { id: userId },
+          {
+            app_metadata: {
+              companyId: companyId,
+              companyName: data.name,
+            },
+          }
+        );
+        console.log(
+          `✅ Updated Auth0 app_metadata for Company Admin ${userId} with companyId: ${companyId}`
+        );
       } catch (error) {
-        console.error(`⚠️ Failed to update Auth0 metadata for ${userId}:`, error.message);
+        console.error(
+          `⚠️ Failed to update Auth0 metadata for ${userId}:`,
+          error.message
+        );
         // Don't fail the company creation if Auth0 update fails
+      }
+    }
+
+    // ✅ FGA Store Integration: Create tuples for new company
+    if (fgaStoreService.enabled && userEmail) {
+      try {
+        if (userRole && userRole.includes("Company Admin")) {
+          // Create tuple: user is admin of company
+          await fgaStoreService.assignUserAsCompanyAdmin(userEmail, companyId);
+          
+          // ✅ PRODUCTION: Auto-grant viewer access to global roles
+          const globalViewers = [
+            'consultant@esgfirm.com',
+            'auditor@sustainapilot.com',
+            'regulator@epa.gov'
+          ];
+          
+          for (const viewerEmail of globalViewers) {
+            try {
+              await fgaStoreService.assignUserAsCompanyViewer(viewerEmail, companyId);
+              console.log(`✅ [FGA] Auto-granted viewer access: ${viewerEmail} → company:${companyId}`);
+            } catch (viewerError) {
+              console.warn(`⚠️ [FGA] Failed to grant viewer access to ${viewerEmail}:`, viewerError.message);
+            }
+          }
+        } else if (
+          userRole &&
+          (userRole.includes("ESG Consultant") ||
+            userRole.includes("Auditor") ||
+            userRole.includes("Regulator"))
+        ) {
+          // Create tuple: user is viewer of company
+          await fgaStoreService.assignUserAsCompanyViewer(userEmail, companyId);
+        }
+
+        console.log(`✅ FGA tuples created for company: ${companyId}`);
+      } catch (fgaError) {
+        console.error(
+          "⚠️ FGA tuple creation failed (non-blocking):",
+          fgaError.message
+        );
+        // Don't fail company creation if FGA fails
       }
     }
 
@@ -109,32 +162,41 @@ class CompanyService {
     // Get existing company first
     const existingCompany = await this.getCompanyById(companyId);
     if (!existingCompany) {
-      throw new Error('Company not found');
+      throw new Error("Company not found");
     }
 
     // Merge updates with existing data
     const updatedCompany = {
       ...existingCompany,
       name: data.name !== undefined ? data.name : existingCompany.name,
-      industry: data.industry !== undefined ? data.industry : existingCompany.industry,
-      country: data.country !== undefined ? data.country : existingCompany.country,
+      industry:
+        data.industry !== undefined ? data.industry : existingCompany.industry,
+      country:
+        data.country !== undefined ? data.country : existingCompany.country,
       city: data.city !== undefined ? data.city : existingCompany.city,
-      website: data.website !== undefined ? data.website : existingCompany.website,
-      employees: data.employees !== undefined ? data.employees : existingCompany.employees,
-      revenue: data.revenue !== undefined ? data.revenue : existingCompany.revenue,
+      website:
+        data.website !== undefined ? data.website : existingCompany.website,
+      employees:
+        data.employees !== undefined
+          ? data.employees
+          : existingCompany.employees,
+      revenue:
+        data.revenue !== undefined ? data.revenue : existingCompany.revenue,
       updated_at: new Date().toISOString(),
     };
 
     // ✅ Try UPDATE first, fallback to DELETE+INSERT if streaming buffer error
     try {
       const updateQuery = `
-        UPDATE \`${bigQueryClient.projectId}.${bigQueryClient.datasetId}.companies\`
+        UPDATE \`${bigQueryClient.projectId}.${
+        bigQueryClient.datasetId
+      }.companies\`
         SET 
           name = '${updatedCompany.name.replace(/'/g, "\\'")}',
           industry = '${updatedCompany.industry.replace(/'/g, "\\'")}',
           country = '${updatedCompany.country.replace(/'/g, "\\'")}',
-          city = '${(updatedCompany.city || '').replace(/'/g, "\\'")}',
-          website = '${(updatedCompany.website || '').replace(/'/g, "\\'")}',
+          city = '${(updatedCompany.city || "").replace(/'/g, "\\'")}',
+          website = '${(updatedCompany.website || "").replace(/'/g, "\\'")}',
           employees = ${updatedCompany.employees || 0},
           revenue = ${updatedCompany.revenue || 0},
           updated_at = CURRENT_TIMESTAMP()
@@ -146,23 +208,27 @@ class CompanyService {
       console.log(`✅ Company ${companyId} updated via UPDATE statement`);
     } catch (updateError) {
       // ✅ Fallback: If streaming buffer error, use DELETE+INSERT
-      if (updateError.message?.includes('streaming buffer')) {
-        console.warn(`⚠️ Streaming buffer detected, using DELETE+INSERT workaround...`);
-        
+      if (updateError.message?.includes("streaming buffer")) {
+        console.warn(
+          `⚠️ Streaming buffer detected, using DELETE+INSERT workaround...`
+        );
+
         // Delete old record
         const deleteQuery = `
           DELETE FROM \`${bigQueryClient.projectId}.${bigQueryClient.datasetId}.companies\`
           WHERE company_id = '${companyId}'
         `;
-        
+
         try {
           await bigQueryClient.query(deleteQuery);
           // Insert updated record
-          await bigQueryClient.insert('companies', [updatedCompany]);
+          await bigQueryClient.insert("companies", [updatedCompany]);
           console.log(`✅ Company ${companyId} updated via DELETE+INSERT`);
         } catch (fallbackError) {
-          if (fallbackError.message?.includes('streaming buffer')) {
-            throw new Error('Company was recently created. Please wait 90 seconds before editing.');
+          if (fallbackError.message?.includes("streaming buffer")) {
+            throw new Error(
+              "Company was recently created. Please wait 90 seconds before editing."
+            );
           }
           throw fallbackError;
         }
@@ -170,7 +236,7 @@ class CompanyService {
         throw updateError;
       }
     }
-    
+
     return updatedCompany;
   }
 
@@ -178,14 +244,20 @@ class CompanyService {
    * Get companies for a user based on role
    */
   async getCompaniesForUser(user) {
-    if (user.roles.includes('Company Admin')) {
+    if (user.roles.includes("Company Admin")) {
       // Company Admin sees only their company
       if (!user.companyId) {
         // ✅ If no company_id in JWT, show companies created by this user
-        console.log(`📋 Company Admin ${user.id} - fetching companies by created_by (no companyId in JWT)`);
+        console.log(
+          `📋 Company Admin ${user.id} - fetching companies by created_by (no companyId in JWT)`
+        );
         const allCompanies = await this.searchCompanies();
-        const userCompanies = allCompanies.filter(c => c.created_by === user.id);
-        console.log(`✅ Found ${userCompanies.length} companies created by user ${user.id}`);
+        const userCompanies = allCompanies.filter(
+          (c) => c.created_by === user.id
+        );
+        console.log(
+          `✅ Found ${userCompanies.length} companies created by user ${user.id}`
+        );
         return userCompanies;
       }
       const company = await this.getCompanyById(user.companyId);
@@ -205,9 +277,9 @@ class CompanyService {
     try {
       // Step 1: Get company details before deletion
       const company = await this.getCompanyById(companyId);
-      
+
       if (!company) {
-        throw new Error('Company not found');
+        throw new Error("Company not found");
       }
 
       // Step 2: Delete from BigQuery (with streaming buffer handling)
@@ -222,24 +294,32 @@ class CompanyService {
         console.log(`✅ Company ${companyId} deleted from BigQuery`);
       } catch (bqError) {
         // ✅ Handle streaming buffer error (recently inserted data)
-        if (bqError.message?.includes('streaming buffer')) {
-          console.warn(`⚠️ BigQuery streaming buffer error, using workaround...`);
-          
+        if (bqError.message?.includes("streaming buffer")) {
+          console.warn(
+            `⚠️ BigQuery streaming buffer error, using workaround...`
+          );
+
           // Workaround: Mark as deleted instead of actual deletion
           const updateQuery = `
             UPDATE \`${bigQueryClient.projectId}.${bigQueryClient.datasetId}.companies\`
             SET status = 'deleted', updated_at = CURRENT_TIMESTAMP()
             WHERE company_id = '${companyId}'
           `;
-          
+
           try {
             await bigQueryClient.query(updateQuery);
-            console.log(`✅ Company ${companyId} marked as deleted (streaming buffer workaround)`);
+            console.log(
+              `✅ Company ${companyId} marked as deleted (streaming buffer workaround)`
+            );
           } catch (updateError) {
             // If update also fails, wait and retry delete
-            console.warn(`⚠️ Update also failed, scheduling deletion for later...`);
+            console.warn(
+              `⚠️ Update also failed, scheduling deletion for later...`
+            );
             // In production, you'd queue this for later processing
-            throw new Error('Company was recently created. Please wait 90 seconds and try again.');
+            throw new Error(
+              "Company was recently created. Please wait 90 seconds and try again."
+            );
           }
         } else {
           throw bqError;
@@ -273,12 +353,14 @@ class CompanyService {
       const pineconeApiKey = user.api_keys?.pinecone_api_key;
 
       if (!pineconeApiKey) {
-        console.warn(`⚠️ No Pinecone API key found for user ${user.id}, skipping RAG deletion`);
-        return { deleted: false, count: 0, reason: 'No Pinecone API key' };
+        console.warn(
+          `⚠️ No Pinecone API key found for user ${user.id}, skipping RAG deletion`
+        );
+        return { deleted: false, count: 0, reason: "No Pinecone API key" };
       }
 
       // Initialize RAG service
-      const RAGService = require('./rag-service');
+      const RAGService = require("./rag-service");
       const ragService = new RAGService(pineconeApiKey, null);
 
       // Delete all documents for this company
@@ -286,9 +368,12 @@ class CompanyService {
 
       console.log(`✅ RAG documents deleted for company ${companyId}`);
 
-      return { deleted: true, count: 'all', reason: 'Success' };
+      return { deleted: true, count: "all", reason: "Success" };
     } catch (error) {
-      console.error(`❌ Error deleting RAG documents for company ${companyId}:`, error);
+      console.error(
+        `❌ Error deleting RAG documents for company ${companyId}:`,
+        error
+      );
       // Don't throw - company deletion should succeed even if RAG deletion fails
       return { deleted: false, count: 0, reason: error.message };
     }
@@ -301,9 +386,11 @@ class CompanyService {
     try {
       // Get SendGrid API key from user's api_keys (populated by Auth0 middleware)
       const sendgridApiKey = user?.api_keys?.sendgrid_api_key;
-      
+
       if (!sendgridApiKey) {
-        throw new Error('SendGrid API key not found. Please configure it in your Auth0 user metadata.');
+        throw new Error(
+          "SendGrid API key not found. Please configure it in your Auth0 user metadata."
+        );
       }
 
       console.log(`   🔐 Retrieved SendGrid API key from user metadata`);
@@ -311,21 +398,21 @@ class CompanyService {
       // Get company details
       const company = await this.getCompanyById(companyId);
       if (!company) {
-        throw new Error('Company not found');
+        throw new Error("Company not found");
       }
-      
+
       // Validate company object
       if (!company.name) {
-        console.error('Invalid company object:', company);
-        throw new Error('Invalid company data. Company name is missing.');
+        console.error("Invalid company object:", company);
+        throw new Error("Invalid company data. Company name is missing.");
       }
 
       console.log(`   ✅ Found company: ${company.name}`);
 
       // Get latest report if reportId not provided
       let report;
-      const reportService = require('./report-generator-service');
-      
+      const reportService = require("./report-generator-service");
+
       if (reportId) {
         // getReport returns a single report object, not an array
         report = await reportService.getReport(reportId);
@@ -333,45 +420,57 @@ class CompanyService {
         // Get latest report for this company - returns array
         const reports = await reportService.getCompanyReports(companyId);
         if (!reports || reports.length === 0) {
-          throw new Error('No report found for this company. Please generate a report first using one of the report generation buttons (GRI, SASB, or TCFD).');
+          throw new Error(
+            "No report found for this company. Please generate a report first using one of the report generation buttons (GRI, SASB, or TCFD)."
+          );
         }
         report = reports[0]; // Latest report
       }
 
       // Validate report object
       if (!report || !report.report_id || !report.framework) {
-        console.error('Invalid report object:', report);
-        throw new Error('Invalid report data. Please regenerate the report.');
+        console.error("Invalid report object:", report);
+        throw new Error("Invalid report data. Please regenerate the report.");
       }
 
-      console.log(`   ✅ Found report: ${report.framework} (${report.report_id})`);
+      console.log(
+        `   ✅ Found report: ${report.framework} (${report.report_id})`
+      );
 
       // Send emails using SendGrid
-      const sgMail = require('@sendgrid/mail');
+      const sgMail = require("@sendgrid/mail");
       sgMail.setApiKey(sendgridApiKey);
 
       const emailPromises = emails.map(async (email) => {
         const msg = {
           to: email,
-          from: process.env.SENDGRID_FROM_EMAIL || 'noreply@esgcopilot.com',
+          from: process.env.SENDGRID_FROM_EMAIL || "noreply@esgcopilot.com",
           subject: `ESG Report Ready - ${company.name}`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #2563eb;">ESG Report Ready</h2>
               <p>Dear Stakeholder,</p>
-              <p>The ESG report for <strong>${company.name}</strong> is now ready for review.</p>
+              <p>The ESG report for <strong>${
+                company.name
+              }</strong> is now ready for review.</p>
               
               <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
                 <h3 style="margin-top: 0;">Report Details</h3>
                 <p><strong>Framework:</strong> ${report.framework}</p>
-                <p><strong>Reporting Period:</strong> ${report.reporting_period}</p>
-                <p><strong>Generated:</strong> ${new Date(report.generated_at).toLocaleDateString()}</p>
+                <p><strong>Reporting Period:</strong> ${
+                  report.reporting_period
+                }</p>
+                <p><strong>Generated:</strong> ${new Date(
+                  report.generated_at
+                ).toLocaleDateString()}</p>
               </div>
 
               <p>Please log in to the ESG Copilot platform to view the full report.</p>
               
               <div style="margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/reports/${report.report_id}" 
+                <a href="${
+                  process.env.FRONTEND_URL || "http://localhost:3000"
+                }/dashboard/reports/${report.report_id}" 
                    style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
                   View Full Report
                 </a>
@@ -390,7 +489,9 @@ class CompanyService {
 
       await Promise.all(emailPromises);
 
-      console.log(`✅ Sent emails to ${emails.length} stakeholder(s) for company ${companyId}`);
+      console.log(
+        `✅ Sent emails to ${emails.length} stakeholder(s) for company ${companyId}`
+      );
 
       return {
         emailsSent: emails.length,

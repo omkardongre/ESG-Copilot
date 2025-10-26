@@ -27,7 +27,6 @@ router.post('/', checkJwt, extractUserInfo, async (req, res) => {
 
     console.log(`\n💬 Chat request from user: ${userId}`);
     console.log(`   Company: ${companyId}`);
-    console.log(`   ⚠️  WARNING: Make sure frontend sends actual company_id, not 'test-company-123'`);
     console.log(`   Message: "${message}"`);
 
     // ✅ PRODUCTION: Get API keys from Token Vault (JWT)
@@ -68,6 +67,8 @@ router.post('/', checkJwt, extractUserInfo, async (req, res) => {
 
     // ✅ Extract user permissions from JWT
     const userPermissions = req.user.permissions || [];
+    const userEmail = req.user.email || userId;
+    const userRoles = req.user.roles || [];
 
     // Execute Chat Agent with OpenFGA support
     const agent = new ChatAgent({ 
@@ -82,6 +83,8 @@ router.post('/', checkJwt, extractUserInfo, async (req, res) => {
       userId,
       conversationId,
       userPermissions, // Pass user permissions for OpenFGA
+      userEmail, // Pass user email for FGA Store
+      userRoles, // Pass user roles for FGA Store
     });
 
     res.json({

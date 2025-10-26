@@ -65,40 +65,39 @@ class ChatAgent {
   }
 
   /**
-   * ✅ PRODUCTION: Chat with RAG context
-   * Uses OpenFGA for fine-grained authorization
+   * Chat with user using RAG context
    */
-  async chat({ message, companyId, userId, conversationId, userPermissions = [] }) {
-    console.log(`\n💬 [${this.name}] Processing chat message...`);
+  async chat({ message, companyId, userId, conversationId, userPermissions = [], userEmail, userRoles = [] }) {
+    console.log(`\n [${this.name}] Processing chat message...`);
     console.log(`   User: ${userId}`);
     console.log(`   Company: ${companyId}`);
     console.log(`   Message: "${message}"`);
     if (this.openFGAConfig) {
-      console.log(`   🔐 OpenFGA: Active`);
-      console.log(`   👤 Permissions: ${userPermissions.join(', ')}`);
+      console.log(`   OpenFGA: Active`);
+      console.log(`   Permissions: ${userPermissions.join(', ')}`);
     }
 
     const startTime = Date.now();
 
     try {
-      // ✅ CRITICAL: Verify API keys from Token Vault
+      // CRITICAL: Verify API keys from Token Vault
       if (!this.googleApiKey || !this.pineconeApiKey) {
         throw new Error('API keys not found in Token Vault. Please configure Google API and Pinecone API keys in Auth0.');
       }
 
-      // Step 1: Retrieve relevant context from RAG (Auth0 FGA authorization)
-      console.log(`   🔍 Step 1: Querying RAG with Auth0 FGA authorization...`);
+      // Step 1: Retrieve relevant context from RAG (Auth0 FGA Store authorization)
+      console.log(`   Step 1: Querying RAG with Auth0 FGA Store authorization...`);
       
-      // Use Auth0 FGA-enabled query for fine-grained document access control
-      const ragResults = await this.ragService.queryWithFGA({
+      // Use External FGA Store for production-level authorization
+      const ragResults = await this.ragService.queryWithFGAStore({
         query: message,
         userId,
-        userEmail: state.userEmail || userId, // Use email for FGA
-        userRoles: state.userRoles || [],
+        userEmail: userEmail || userId, // Use email for FGA
+        userRoles: userRoles || [],
         topK: 3,
       });
 
-      console.log(`   ✅ [Auth0 FGA] Found ${ragResults.length} authorized documents`);
+      console.log(`   [FGA Store] Found ${ragResults.length} authorized documents`);
 
       // Step 2: Build context from RAG results
       const context = ragResults.map((result, idx) => 

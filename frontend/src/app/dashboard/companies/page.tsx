@@ -160,7 +160,7 @@ export default function CompaniesPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.details || errorData.error || 'Failed to update company');
+        throw new Error(errorData.message || errorData.details || errorData.error || 'Failed to update company');
       }
 
       const result = await response.json();
@@ -212,7 +212,7 @@ export default function CompaniesPage() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(data.message || data.error || data.details || 'Failed to delete company');
+        throw new Error(data.message || data.details || data.error || 'Failed to delete company');
       }
 
       const result = await response.json();

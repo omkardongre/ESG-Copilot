@@ -10,6 +10,7 @@
 const { Pinecone } = require('@pinecone-database/pinecone');
 const { GoogleGenerativeAIEmbeddings } = require('@langchain/google-genai');
 const { Document } = require('langchain/document');
+const fgaStoreService = require('./fga-store-service');
 
 // Auth0 AI SDK uses ESM - load dynamically
 let FGARetriever = null;
@@ -59,9 +60,9 @@ class RAGService {
   }
 
   /**
-   * ✅ PRODUCTION: Add document with permission metadata
+   * ✅ PRODUCTION: Add document with permission metadata and FGA tuples
    */
-  async addDocument({ text, metadata, companyId, userId }) {
+  async addDocument({ text, metadata, companyId, userId, userEmail }) {
     if (!this.pinecone || !this.embeddings) {
       throw new Error('RAG service not initialized. Check API keys in Token Vault.');
     }
@@ -71,8 +72,10 @@ class RAGService {
       const embedding = await this.embeddings.embedQuery(text);
 
       // ✅ CRITICAL: Add permission metadata
+      const documentId = metadata.document_id || `${companyId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const vectorMetadata = {
         ...metadata,
+        document_id: documentId,
         company_id: companyId,
         user_id: userId,
         created_at: new Date().toISOString(),
@@ -80,7 +83,7 @@ class RAGService {
       };
 
       // Upsert to Pinecone
-      const vectorId = `${companyId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const vectorId = documentId;
       
       await this.index.upsert([{
         id: vectorId,
@@ -89,7 +92,26 @@ class RAGService {
       }]);
 
       console.log(`✅ Document added to RAG: ${vectorId}`);
-      return { vectorId, metadata: vectorMetadata };
+
+      // ✅ Create FGA Store tuples for authorization
+      if (fgaStoreService.enabled) {
+        try {
+          // Create tuple: document belongs to company
+          await fgaStoreService.assignDocumentToCompany(documentId, companyId);
+          
+          // Create tuple: user is owner of document
+          if (userEmail) {
+            await fgaStoreService.assignUserAsDocumentOwner(userEmail, documentId);
+          }
+          
+          console.log(`✅ FGA tuples created for document: ${documentId}`);
+        } catch (fgaError) {
+          console.error('⚠️ FGA tuple creation failed (non-blocking):', fgaError.message);
+          // Don't fail document creation if FGA fails
+        }
+      }
+
+      return { vectorId, documentId, metadata: vectorMetadata };
     } catch (error) {
       console.error('❌ RAG addDocument error:', error);
       throw error;
@@ -170,7 +192,64 @@ class RAGService {
   }
 
   /**
-   * ✅ PRODUCTION: Query with Auth0 FGA authorization
+   * ✅ PRODUCTION: Query with External FGA Store Authorization
+   * Uses Auth0 FGA Store API for real-time authorization checks
+   */
+  async queryWithFGAStore({ query, userId, userEmail, userRoles, topK = 5 }) {
+    if (!this.pinecone || !this.embeddings) {
+      throw new Error('RAG service not initialized. Check API keys in Token Vault.');
+    }
+
+    try {
+      console.log(`🔐 [FGA Store] Querying RAG with external FGA Store authorization`);
+      console.log(`   👤 User: ${userEmail} (${userId})`);
+      console.log(`   🎭 Roles: ${userRoles.join(', ')}`);
+
+      // Step 1: Generate embedding for query
+      const queryEmbedding = await this.embeddings.embedQuery(query);
+
+      // Step 2: Query Pinecone (no filtering yet)
+      const results = await this.index.query({
+        vector: queryEmbedding,
+        topK: topK * 3, // Fetch more, then filter by FGA
+        includeMetadata: true,
+      });
+
+      console.log(`   📊 Pinecone returned ${results.matches.length} candidates`);
+
+      // Step 3: Filter by FGA Store authorization
+      const authorizedDocuments = [];
+      
+      for (const match of results.matches) {
+        const documentId = match.metadata.document_id || match.id;
+        
+        // Check authorization with FGA Store
+        const canView = await fgaStoreService.canViewDocument(userEmail, documentId);
+        
+        if (canView) {
+          authorizedDocuments.push({
+            id: match.id,
+            score: match.score,
+            text: match.metadata.text,
+            metadata: match.metadata,
+          });
+        }
+      }
+
+      // Limit to topK after authorization
+      const finalResults = authorizedDocuments.slice(0, topK);
+
+      console.log(`✅ [FGA Store] Returned ${finalResults.length} authorized documents (filtered from ${results.matches.length})`);
+
+      return finalResults;
+    } catch (error) {
+      console.error('❌ [FGA Store] Query error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ PRODUCTION: Query with Auth0 FGA authorization (SDK-based)
    * Uses FGARetriever to enforce document-level permissions
    */
   async queryWithFGA({ query, userId, userEmail, userRoles, topK = 5 }) {

@@ -58,7 +58,8 @@ router.post(
           complianceRequirements,
         },
         req.user.id,
-        req.user.roles // Pass user roles for Auth0 metadata update
+        req.user.roles, // Pass user roles for Auth0 metadata update
+        req.user.email  // Pass user email for FGA Store tuple creation
       );
 
       res.status(201).json({ company });
