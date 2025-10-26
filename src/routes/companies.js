@@ -1,9 +1,16 @@
 // Company Routes (F1)
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const companyService = require('../services/company-service');
-const { checkJwt, extractUserInfo, requireRole, requirePermission, requireCompanyAccess, ROLES } = require('../middleware/auth0');
-const { auditMiddleware } = require('../middleware/audit-logger');
+const companyService = require("../services/company-service");
+const {
+  checkJwt,
+  extractUserInfo,
+  requireRole,
+  requirePermission,
+  requireCompanyAccess,
+  ROLES,
+} = require("../middleware/auth0");
+const { auditMiddleware } = require("../middleware/audit-logger");
 
 // Apply JWT validation and user extraction to all routes
 router.use(checkJwt);
@@ -223,12 +230,18 @@ router.post(
 
       // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const invalidEmails = emails.filter(email => !emailRegex.test(email));
+      const invalidEmails = emails.filter((email) => !emailRegex.test(email));
       if (invalidEmails.length > 0) {
         return res.status(400).json({ 
           error: 'Invalid email addresses',
           message: `Invalid emails: ${invalidEmails.join(', ')}` 
         });
+      }
+
+      // Get company details
+      const company = await companyService.getCompanyById(companyId);
+      if (!company) {
+        return res.status(404).json({ error: "Company not found" });
       }
 
       // Send emails to stakeholders

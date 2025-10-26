@@ -94,6 +94,7 @@ class ChatAgent {
         userId,
         userEmail: userEmail || userId, // Use email for FGA
         userRoles: userRoles || [],
+        companyId, // ✅ Filter by selected company
         topK: 3,
       });
 

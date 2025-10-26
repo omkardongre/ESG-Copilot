@@ -126,18 +126,18 @@ const extractUserInfo = (req, res, next) => {
       api_keys: apiKeys, // ✅ ADD API KEYS TO req.user
     };
     
-    // 🔍 LOG TOKEN VAULT CONTENTS FOR VERIFICATION
-    console.log('\n🔐 ===== AUTH0 TOKEN VAULT VERIFICATION =====');
-    console.log('User:', req.user.email);
-    console.log('Roles:', req.user.roles);
-    console.log('Permissions:', req.user.permissions);
-    
-    console.log('\n🔑 API Keys in JWT Token Vault:');
-    console.log('  - climatiq_api_key:', apiKeys.climatiq_api_key ? '✅ Present' : '❌ Missing');
-    console.log('  - google_maps_api_key:', apiKeys.google_maps_api_key ? '✅ Present' : '❌ Missing');
-    console.log('  - pinecone_api_key:', apiKeys.pinecone_api_key ? '✅ Present' : '❌ Missing');
-    console.log('  - sendgrid_api_key:', apiKeys.sendgrid_api_key ? '✅ Present' : '❌ Missing');
-    console.log('==========================================\n');
+    // 🔍 LOG TOKEN VAULT CONTENTS FOR VERIFICATION (Disabled - too verbose)
+    // console.log('\n🔐 ===== AUTH0 TOKEN VAULT VERIFICATION =====');
+    // console.log('User:', req.user.email);
+    // console.log('Roles:', req.user.roles);
+    // console.log('Permissions:', req.user.permissions);
+    // 
+    // console.log('\n🔑 API Keys in JWT Token Vault:');
+    // console.log('  - climatiq_api_key:', apiKeys.climatiq_api_key ? '✅ Present' : '❌ Missing');
+    // console.log('  - google_maps_api_key:', apiKeys.google_maps_api_key ? '✅ Present' : '❌ Missing');
+    // console.log('  - pinecone_api_key:', apiKeys.pinecone_api_key ? '✅ Present' : '❌ Missing');
+    // console.log('  - sendgrid_api_key:', apiKeys.sendgrid_api_key ? '✅ Present' : '❌ Missing');
+    // console.log('==========================================\n');
   }
   next();
 };

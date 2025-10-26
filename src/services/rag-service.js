@@ -195,7 +195,7 @@ class RAGService {
    * ✅ PRODUCTION: Query with External FGA Store Authorization
    * Uses Auth0 FGA Store API for real-time authorization checks
    */
-  async queryWithFGAStore({ query, userId, userEmail, userRoles, topK = 5 }) {
+  async queryWithFGAStore({ query, userId, userEmail, userRoles, companyId, topK = 5 }) {
     if (!this.pinecone || !this.embeddings) {
       throw new Error('RAG service not initialized. Check API keys in Token Vault.');
     }
@@ -204,16 +204,24 @@ class RAGService {
       console.log(`🔐 [FGA Store] Querying RAG with external FGA Store authorization`);
       console.log(`   👤 User: ${userEmail} (${userId})`);
       console.log(`   🎭 Roles: ${userRoles.join(', ')}`);
+      console.log(`   🏢 Company Filter: ${companyId || 'All companies'}`);
 
       // Step 1: Generate embedding for query
       const queryEmbedding = await this.embeddings.embedQuery(query);
 
-      // Step 2: Query Pinecone (no filtering yet)
-      const results = await this.index.query({
+      // Step 2: Query Pinecone with company filter
+      const queryOptions = {
         vector: queryEmbedding,
         topK: topK * 3, // Fetch more, then filter by FGA
         includeMetadata: true,
-      });
+      };
+
+      // ✅ Filter by company if specified
+      if (companyId) {
+        queryOptions.filter = { company_id: { $eq: companyId } };
+      }
+
+      const results = await this.index.query(queryOptions);
 
       console.log(`   📊 Pinecone returned ${results.matches.length} candidates`);
 
