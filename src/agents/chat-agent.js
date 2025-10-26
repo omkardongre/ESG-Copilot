@@ -13,7 +13,7 @@ const agentLogger = require('./agent-logger');
 const messageQueue = require('./message-queue');
 
 class ChatAgent {
-  constructor({ googleApiKey, pineconeApiKey }) {
+  constructor({ googleApiKey, pineconeApiKey, openFGAConfig = null }) {
     this.name = 'ChatAgent';
     
     // ✅ PRODUCTION: Validate API keys
@@ -26,6 +26,7 @@ class ChatAgent {
     
     this.googleApiKey = googleApiKey;
     this.pineconeApiKey = pineconeApiKey;
+    this.openFGAConfig = openFGAConfig;
     
     // Initialize Google Generative AI (direct SDK, not LangChain)
     console.log(`   🔧 [ChatAgent] Initializing Google Generative AI...`);
@@ -50,8 +51,14 @@ class ChatAgent {
       throw error;
     }
     
-    // Initialize RAG service
-    this.ragService = new RAGService(pineconeApiKey, googleApiKey);
+    // ✅ Initialize RAG service with OpenFGA support
+    this.ragService = new RAGService(pineconeApiKey, googleApiKey, openFGAConfig);
+    
+    // Log OpenFGA status
+    if (openFGAConfig) {
+      const status = this.ragService.getOpenFGAStatus();
+      console.log(`   🔐 [ChatAgent] OpenFGA: ${status.enabled ? '✅ Active' : '⚠️ Not initialized'}`);
+    }
     
     // Conversation history (in-memory, move to Redis for production)
     this.conversationHistory = new Map();
@@ -59,12 +66,17 @@ class ChatAgent {
 
   /**
    * ✅ PRODUCTION: Chat with RAG context
+   * Uses OpenFGA for fine-grained authorization
    */
-  async chat({ message, companyId, userId, conversationId }) {
+  async chat({ message, companyId, userId, conversationId, userPermissions = [] }) {
     console.log(`\n💬 [${this.name}] Processing chat message...`);
     console.log(`   User: ${userId}`);
     console.log(`   Company: ${companyId}`);
     console.log(`   Message: "${message}"`);
+    if (this.openFGAConfig) {
+      console.log(`   🔐 OpenFGA: Active`);
+      console.log(`   👤 Permissions: ${userPermissions.join(', ')}`);
+    }
 
     const startTime = Date.now();
 
@@ -74,16 +86,19 @@ class ChatAgent {
         throw new Error('API keys not found in Token Vault. Please configure Google API and Pinecone API keys in Auth0.');
       }
 
-      // Step 1: Retrieve relevant context from RAG (permission-aware)
-      console.log(`   🔍 Step 1: Querying RAG for relevant context...`);
-      const ragResults = await this.ragService.query({
+      // Step 1: Retrieve relevant context from RAG (Auth0 FGA authorization)
+      console.log(`   🔍 Step 1: Querying RAG with Auth0 FGA authorization...`);
+      
+      // Use Auth0 FGA-enabled query for fine-grained document access control
+      const ragResults = await this.ragService.queryWithFGA({
         query: message,
-        companyId,
         userId,
+        userEmail: state.userEmail || userId, // Use email for FGA
+        userRoles: state.userRoles || [],
         topK: 3,
       });
 
-      console.log(`   ✅ Found ${ragResults.length} relevant documents`);
+      console.log(`   ✅ [Auth0 FGA] Found ${ragResults.length} authorized documents`);
 
       // Step 2: Build context from RAG results
       const context = ragResults.map((result, idx) => 

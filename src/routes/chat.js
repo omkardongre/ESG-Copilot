@@ -59,13 +59,29 @@ router.post('/', checkJwt, extractUserInfo, async (req, res) => {
 
     console.log(`   🔐 Retrieved Pinecone API key from Token Vault`);
 
-    // Execute Chat Agent
-    const agent = new ChatAgent({ googleApiKey, pineconeApiKey });
+    // ✅ OpenFGA: Pass config for fine-grained authorization
+    const openFGAConfig = {
+      enabled: true,
+      storeId: process.env.OPENFGA_STORE_ID || 'default-store',
+      apiUrl: process.env.OPENFGA_API_URL || 'https://api.fga.dev',
+    };
+
+    // ✅ Extract user permissions from JWT
+    const userPermissions = req.user.permissions || [];
+
+    // Execute Chat Agent with OpenFGA support
+    const agent = new ChatAgent({ 
+      googleApiKey, 
+      pineconeApiKey,
+      openFGAConfig, // Pass OpenFGA config for fine-grained authorization
+    });
+    
     const result = await agent.chat({
       message,
       companyId,
       userId,
       conversationId,
+      userPermissions, // Pass user permissions for OpenFGA
     });
 
     res.json({
