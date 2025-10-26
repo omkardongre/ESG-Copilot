@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useUser } from '@auth0/nextjs-auth0/client';
+import { ConfirmModal } from '@/components/Modal';
 
 interface Company {
   company_id: string;
@@ -23,6 +24,10 @@ export default function CompaniesPage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [companyToDelete, setCompanyToDelete] = useState<{ id: string; name: string } | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     industry: '',
@@ -130,6 +135,7 @@ export default function CompaniesPage() {
     e.preventDefault();
     setEditing(true);
     setError('');
+    setSuccessMessage('');
 
     try {
       const tokenResponse = await fetch('/api/auth/token');
@@ -153,17 +159,24 @@ export default function CompaniesPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(errorData.details || errorData.error || 'Failed to update company');
       }
+
+      const result = await response.json();
 
       // Success - reset form and refresh list
       setFormData({ name: '', industry: '', country: '', city: '', website: '', employees: '', revenue: '' });
       setShowForm(false);
       setEditingCompanyId(null);
       await fetchCompanies();
+      
+      // Show success message
+      setSuccessMessage(`Successfully updated "${result.company?.name || formData.name}"`);
+      setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err: any) {
       setError(err.message);
+      setTimeout(() => setError(''), 8000);
     } finally {
       setEditing(false);
     }
@@ -173,6 +186,55 @@ export default function CompaniesPage() {
     setFormData({ name: '', industry: '', country: '', city: '', website: '', employees: '', revenue: '' });
     setShowForm(false);
     setEditingCompanyId(null);
+  };
+
+  const handleDeleteCompany = async () => {
+    if (!companyToDelete) return;
+
+    const { id: companyId, name: companyName } = companyToDelete;
+    setDeleting(companyId);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      // Get access token from Auth0
+      const tokenResponse = await fetch('/api/auth/token');
+      const { accessToken } = await tokenResponse.json();
+
+      const response = await fetch(`http://localhost:3001/api/companies/${companyId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(data.message || data.error || data.details || 'Failed to delete company');
+      }
+
+      const result = await response.json();
+      console.log('✅ Company deleted:', result);
+
+      // Success - refresh list
+      await fetchCompanies();
+      
+      // Show success message in UI
+      setSuccessMessage(`Successfully deleted "${companyName}" and associated data`);
+      
+      // Auto-hide success message after 5 seconds
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err: any) {
+      console.error('❌ Delete error:', err);
+      setError(err.message);
+      
+      // Auto-hide error message after 8 seconds
+      setTimeout(() => setError(''), 8000);
+    } finally {
+      setDeleting(null);
+    }
   };
 
   if (loading) {
@@ -188,13 +250,35 @@ export default function CompaniesPage() {
         </p>
       </div>
 
+      {/* Success Message */}
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-6 flex items-center justify-between">
+          <div>
+            <p className="font-semibold">✅ Success</p>
+            <p>{successMessage}</p>
+          </div>
+          <button 
+            onClick={() => setSuccessMessage('')}
+            className="text-green-700 hover:text-green-900 font-bold"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
-          <p className="font-semibold">Error:</p>
-          <p>{error}</p>
-          <p className="text-sm mt-2">
-            Make sure the backend API is running on {process.env.NEXT_PUBLIC_API_URL}
-          </p>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6 flex items-center justify-between">
+          <div>
+            <p className="font-semibold">❌ Error</p>
+            <p>{error}</p>
+          </div>
+          <button 
+            onClick={() => setError('')}
+            className="text-red-700 hover:text-red-900 font-bold"
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -379,14 +463,40 @@ export default function CompaniesPage() {
                 <button 
                   onClick={() => handleEditCompany(company)}
                   className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                  disabled={deleting === company.company_id}
                 >
                   Edit
+                </button>
+                <button 
+                  onClick={() => {
+                    setCompanyToDelete({ id: company.company_id, name: company.name });
+                    setShowDeleteConfirm(true);
+                  }}
+                  className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  disabled={deleting === company.company_id}
+                >
+                  {deleting === company.company_id ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
             </div>
           ))
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setCompanyToDelete(null);
+        }}
+        onConfirm={handleDeleteCompany}
+        title="Delete Company"
+        message={`Are you sure you want to delete "${companyToDelete?.name}"?\n\nThis will also delete:\n• All associated reports\n• All RAG documents in Pinecone\n• All ESG data\n\nThis action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="error"
+      />
     </div>
   );
 }

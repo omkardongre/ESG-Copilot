@@ -85,9 +85,22 @@ router.get(
         });
       }
 
-      // Otherwise, get ALL reports across all companies
-      const allReports = await reportGeneratorService.getAllReports();
+      // Get reports based on user role
+      const userRoles = req.user.roles;
+      const userId = req.user.id;
+      
+      // Company Admin: Only see reports they created
+      if (userRoles.includes(ROLES.COMPANY_ADMIN)) {
+        console.log(`📊 Company Admin ${userId} requesting their reports`);
+        const userReports = await reportGeneratorService.getReportsByUser(userId);
+        return res.json({
+          reports: userReports,
+          count: userReports.length,
+        });
+      }
 
+      // ESG Consultant, Auditor, Regulator: See all reports
+      const allReports = await reportGeneratorService.getAllReports();
       res.json({
         reports: allReports,
         count: allReports.length,
@@ -118,14 +131,36 @@ router.get(
       // Check company access
       const userRoles = req.user.roles;
       const userCompanyId = req.user.companyId;
+      const userId = req.user.id;
 
-      if (
-        userRoles.includes(ROLES.COMPANY_ADMIN) &&
-        report.company_id !== userCompanyId
-      ) {
-        return res.status(403).json({ 
-          error: 'You can only view reports for your own company' 
-        });
+      console.log('🔍 Report Access Check:', {
+        reportId,
+        reportCompanyId: report.company_id,
+        reportCreatedBy: report.generated_by,
+        userId,
+        userCompanyId,
+        userRoles
+      });
+
+      // ✅ Company Admin: Check if user created this report OR if it's their company
+      if (userRoles.includes(ROLES.COMPANY_ADMIN)) {
+        const canView = 
+          report.generated_by === userId ||  // User created this report
+          (userCompanyId && report.company_id === userCompanyId);  // Or it's their company
+        
+        if (!canView) {
+          console.log('❌ Access denied:', { 
+            reason: 'User did not create report and companyId does not match',
+            reportGeneratedBy: report.generated_by,
+            userId,
+            match: report.generated_by === userId
+          });
+          return res.status(403).json({ 
+            error: 'You can only view reports for your own company' 
+          });
+        }
+        
+        console.log('✅ Access granted to Company Admin');
       }
 
       res.json({ report });
@@ -222,14 +257,26 @@ router.get(
       
       const userRoles = req.user.roles;
       const userCompanyId = req.user.companyId;
+      const userId = req.user.id;
 
-      if (
-        userRoles.includes(ROLES.COMPANY_ADMIN) &&
-        report.company_id !== userCompanyId
-      ) {
-        return res.status(403).json({ 
-          error: 'You can only download reports for your own company' 
-        });
+      // ✅ Company Admin: Check if user created this report OR if it's their company
+      if (userRoles.includes(ROLES.COMPANY_ADMIN)) {
+        const canDownload = 
+          report.generated_by === userId ||  // User created this report
+          (userCompanyId && report.company_id === userCompanyId);  // Or it's their company
+        
+        if (!canDownload) {
+          console.log('❌ PDF Download denied:', { 
+            reportGeneratedBy: report.generated_by,
+            userId,
+            match: report.generated_by === userId
+          });
+          return res.status(403).json({ 
+            error: 'You can only download reports for your own company' 
+          });
+        }
+        
+        console.log('✅ PDF Download granted to Company Admin');
       }
 
       const pdfPath = await reportGeneratorService.generatePDF(reportId);

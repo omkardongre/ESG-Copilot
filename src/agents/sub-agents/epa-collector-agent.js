@@ -27,7 +27,7 @@ class EPACollectorAgent {
     try {
       // Search for facilities by state (more reliable than city)
       const state_abbr = companyData.state || 'CA';
-      const searchUrl = `https://data.epa.gov/efservice/tri_facility/state_abbr/equals/${state_abbr}/rows/0:50/JSON`;
+      const searchUrl = `https://data.epa.gov/efservice/tri_facility/state_abbr/${state_abbr}/rows/0:100/JSON`;
 
       console.log(`      🔍 [${this.name}] Querying EPA API for state: ${state_abbr}`);
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useUser } from '@auth0/nextjs-auth0/client';
+import Modal from '@/components/Modal';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -22,6 +23,7 @@ export default function ChatPage() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
+  const [errorModal, setErrorModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -81,7 +83,7 @@ export default function ChatPage() {
     if (!text.trim()) return;
 
     if (!selectedCompany) {
-      alert('Please select a company first');
+      setErrorModal({ show: true, message: 'Please select a company first' });
       return;
     }
 
@@ -282,6 +284,16 @@ export default function ChatPage() {
           Press Enter to send, Shift+Enter for new line
         </p>
       </div>
+
+      {/* Error Modal */}
+      <Modal
+        isOpen={errorModal.show}
+        onClose={() => setErrorModal({ show: false, message: '' })}
+        title="Error"
+        type="error"
+      >
+        <p className="text-gray-700">{errorModal.message}</p>
+      </Modal>
     </div>
   );
 }

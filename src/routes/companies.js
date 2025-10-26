@@ -57,7 +57,8 @@ router.post(
           publicStatus,
           complianceRequirements,
         },
-        req.user.id
+        req.user.id,
+        req.user.roles // Pass user roles for Auth0 metadata update
       );
 
       res.status(201).json({ company });
@@ -122,6 +123,62 @@ router.put(
 );
 
 /**
+ * DELETE /api/companies/:companyId
+ * Delete company (Company Admin or ESG Consultant only)
+ * ✅ Also deletes associated RAG documents from Pinecone
+ */
+router.delete(
+  '/:companyId',
+  requirePermission('write:companies'),
+  auditMiddleware('delete_company', 'companies'),
+  async (req, res) => {
+    try {
+      const { companyId } = req.params;
+      const user = req.user;
+
+      console.log(`🗑️ Delete request for company ${companyId} by user ${user.id}`);
+
+      // ✅ Authorization: Company Admin can only delete their own company
+      if (user.roles.includes('Company Admin')) {
+        const company = await companyService.getCompanyById(companyId);
+        
+        if (!company) {
+          return res.status(404).json({ error: 'Company not found' });
+        }
+
+        // Check if user created this company or if it's their assigned company
+        const canDelete = company.created_by === user.id || user.companyId === companyId;
+        
+        if (!canDelete) {
+          console.log(`❌ Company Admin ${user.id} cannot delete company ${companyId}`);
+          return res.status(403).json({ 
+            error: 'Forbidden',
+            message: 'You can only delete your own company' 
+          });
+        }
+      }
+
+      // ✅ ESG Consultant can delete any company (no check needed)
+
+      // Delete company and associated RAG documents
+      const result = await companyService.deleteCompany(companyId, user);
+
+      res.json({ 
+        success: true,
+        message: 'Company and associated data deleted successfully',
+        ...result
+      });
+    } catch (error) {
+      console.error('❌ Error deleting company:', error);
+      res.status(500).json({ 
+        error: 'Failed to delete company',
+        details: error.message 
+      });
+    }
+  }
+);
+
+/**
  * GET /api/companies/search
  * Search companies by filters
  */
@@ -141,5 +198,59 @@ router.get('/search', auditMiddleware('search_companies', 'companies'), async (r
     res.status(500).json({ error: 'Failed to search companies' });
   }
 });
+
+/**
+ * POST /api/companies/:id/send-stakeholder-email
+ * Send ESG report email to stakeholders
+ */
+router.post(
+  '/:id/send-stakeholder-email',
+  auditMiddleware('send_stakeholder_email', 'companies'),
+  async (req, res) => {
+    try {
+      const companyId = req.params.id;
+      const { emails, reportId } = req.body;
+      const user = req.user;
+
+      // Validate input
+      if (!emails || !Array.isArray(emails) || emails.length === 0) {
+        return res.status(400).json({ 
+          error: 'Invalid input',
+          message: 'Please provide an array of email addresses' 
+        });
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const invalidEmails = emails.filter(email => !emailRegex.test(email));
+      if (invalidEmails.length > 0) {
+        return res.status(400).json({ 
+          error: 'Invalid email addresses',
+          message: `Invalid emails: ${invalidEmails.join(', ')}` 
+        });
+      }
+
+      // Send emails to stakeholders
+      const result = await companyService.sendStakeholderEmails(
+        companyId,
+        emails,
+        reportId,
+        user
+      );
+
+      res.json({ 
+        success: true,
+        message: `Email sent to ${emails.length} stakeholder(s)`,
+        ...result
+      });
+    } catch (error) {
+      console.error('❌ Error sending stakeholder emails:', error);
+      res.status(500).json({ 
+        error: 'Failed to send emails',
+        details: error.message 
+      });
+    }
+  }
+);
 
 module.exports = router;

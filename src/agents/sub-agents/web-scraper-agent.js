@@ -86,16 +86,23 @@ class WebScraperAgent {
     try {
       const page = await browser.newPage();
 
+      // Set default timeout for all operations
+      page.setDefaultTimeout(45000);
+
       // Set user agent to avoid bot detection
       await page.setUserAgent(
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       );
 
-      // Set timeout and navigate
+      // Use 'domcontentloaded' instead of 'networkidle2' for faster, more reliable loading
+      // networkidle2 can timeout on sites with persistent connections (analytics, chat widgets, etc.)
       await page.goto(url, {
-        waitUntil: 'networkidle2',
-        timeout: 30000,
+        waitUntil: 'domcontentloaded',
+        timeout: 40000,
       });
+
+      // Wait a bit for dynamic content to render (using Promise instead of deprecated waitForTimeout)
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Extract text content
       const content = await page.evaluate(() => {
@@ -145,9 +152,12 @@ class WebScraperAgent {
           // Scrape max 2 ESG pages
           try {
             await page.goto(link.url, {
-              waitUntil: 'networkidle2',
-              timeout: 20000,
+              waitUntil: 'domcontentloaded',
+              timeout: 30000,
             });
+
+            // Wait for content to render (using Promise instead of deprecated waitForTimeout)
+            await new Promise(resolve => setTimeout(resolve, 1500));
 
             const pageText = await page.evaluate(() => {
               const scripts = document.querySelectorAll('script, style, noscript');

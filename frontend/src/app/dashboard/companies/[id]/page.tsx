@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import Modal from '@/components/Modal';
 import { useUser } from '@auth0/nextjs-auth0/client';
+import { useRouter } from 'next/navigation';
 
 interface Company {
   company_id: string;
@@ -42,6 +44,9 @@ export default function CompanyDetailsPage() {
   const [outreachResult, setOutreachResult] = useState<any>(null);
   const [showOutreachModal, setShowOutreachModal] = useState(false);
   const [outreachError, setOutreachError] = useState<string | null>(null);
+  const [errorModal, setErrorModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
+  const [showEmailPrompt, setShowEmailPrompt] = useState(false);
+  const [stakeholderEmails, setStakeholderEmails] = useState<string>('');
 
   useEffect(() => {
     if (params.id) {
@@ -113,7 +118,7 @@ export default function CompanyDetailsPage() {
       setResearchResult(data);
       setShowResultModal(true);
     } catch (err: any) {
-      alert(`❌ Error: ${err.message}`);
+      setErrorModal({ show: true, message: err.message });
     } finally {
       setResearching(false);
     }
@@ -148,7 +153,7 @@ export default function CompanyDetailsPage() {
       setDataResult(data);
       setShowDataModal(true);
     } catch (err: any) {
-      alert(`❌ Error: ${err.message}`);
+      setErrorModal({ show: true, message: err.message });
     } finally {
       setCollectingData(false);
     }
@@ -183,22 +188,50 @@ export default function CompanyDetailsPage() {
       setEmissionsResult(data);
       setShowEmissionsModal(true);
     } catch (err: any) {
-      alert(`❌ Error: ${err.message}`);
+      setErrorModal({ show: true, message: err.message });
     } finally {
       setCalculatingEmissions(false);
     }
   };
 
   const handleSendOutreach = async () => {
+    // Show email prompt modal
+    setShowEmailPrompt(true);
+  };
+
+  const handleSendEmailsToStakeholders = async () => {
     if (!company) return;
+
+    // Validate emails
+    const emailList = stakeholderEmails
+      .split(',')
+      .map(email => email.trim())
+      .filter(email => email.length > 0);
+
+    if (emailList.length === 0) {
+      setErrorModal({ show: true, message: 'Please enter at least one email address' });
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const invalidEmails = emailList.filter(email => !emailRegex.test(email));
+    if (invalidEmails.length > 0) {
+      setErrorModal({ 
+        show: true, 
+        message: `Invalid email addresses: ${invalidEmails.join(', ')}` 
+      });
+      return;
+    }
 
     try {
       setSendingOutreach(true);
+      setShowEmailPrompt(false);
 
       const tokenResponse = await fetch('/api/auth/token');
       const { accessToken } = await tokenResponse.json();
 
-      // Get the latest report ID (in production, let user select)
+      // Get the latest report ID
       const reportsResponse = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/reports?companyId=${company.company_id}`,
         {
@@ -219,20 +252,25 @@ export default function CompanyDetailsPage() {
 
       const latestReport = reportsData.reports[0];
 
+      // Send emails using new endpoint
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/outreach/send/${company.company_id}/${latestReport.report_id}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/companies/${company.company_id}/send-stakeholder-email`,
         {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
+          body: JSON.stringify({
+            emails: emailList,
+            reportId: latestReport.report_id,
+          }),
         }
       );
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || errorData.message || 'Failed to send outreach');
+        throw new Error(errorData.error || errorData.message || 'Failed to send emails');
       }
 
       const data = await response.json();
@@ -278,8 +316,8 @@ export default function CompanyDetailsPage() {
       setReportResult(data);
       setShowReportModal(true);
     } catch (err: any) {
-      alert(`❌ Error: ${err.message}`);
-    } finally {
+      setErrorModal({ show: true, message: err.message });
+    } finally{
       setGeneratingReport(false);
     }
   };
@@ -459,19 +497,21 @@ export default function CompanyDetailsPage() {
                 {/* Environmental Data */}
                 {dataResult.dataCollected?.environmental && (
                   <div className="border border-gray-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                    <h4 className="font-semibold text-lg text-gray-900 mb-3 flex items-center">
                       <span className="mr-2">🌍</span>
                       Environmental Data
                     </h4>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
                       {Object.entries(dataResult.dataCollected.environmental).map(([key, value]: [string, any]) => {
                         if (typeof value === 'object') return null;
                         return (
-                          <div key={key} className="bg-gray-50 p-2 rounded">
-                            <p className="text-xs text-gray-500 capitalize">
+                          <div key={key} className="flex justify-between items-start py-2 border-b border-gray-100 last:border-0">
+                            <span className="text-sm text-gray-600 capitalize flex-1">
                               {key.replace(/_/g, ' ')}
-                            </p>
-                            <p className="font-semibold text-gray-900">{String(value)}</p>
+                            </span>
+                            <span className="text-sm font-medium text-gray-900 text-right flex-1">
+                              {String(value)}
+                            </span>
                           </div>
                         );
                       })}
@@ -482,17 +522,17 @@ export default function CompanyDetailsPage() {
                 {/* Social Data */}
                 {dataResult.dataCollected?.social && (
                   <div className="border border-gray-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                    <h4 className="font-semibold text-lg text-gray-900 mb-3 flex items-center">
                       <span className="mr-2">👥</span>
                       Social Data
                     </h4>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
                       {Object.entries(dataResult.dataCollected.social).map(([key, value]: [string, any]) => (
-                        <div key={key} className="bg-gray-50 p-2 rounded">
-                          <p className="text-xs text-gray-500 capitalize">
+                        <div key={key} className="py-2 border-b border-gray-100 last:border-0">
+                          <p className="text-sm font-medium text-gray-700 mb-1 capitalize">
                             {key.replace(/_/g, ' ')}
                           </p>
-                          <p className="font-semibold text-gray-900">{String(value)}</p>
+                          <p className="text-sm text-gray-600 leading-relaxed">{String(value)}</p>
                         </div>
                       ))}
                     </div>
@@ -502,17 +542,17 @@ export default function CompanyDetailsPage() {
                 {/* Governance Data */}
                 {dataResult.dataCollected?.governance && (
                   <div className="border border-gray-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                    <h4 className="font-semibold text-lg text-gray-900 mb-3 flex items-center">
                       <span className="mr-2">⚖️</span>
                       Governance Data
                     </h4>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
                       {Object.entries(dataResult.dataCollected.governance).map(([key, value]: [string, any]) => (
-                        <div key={key} className="bg-gray-50 p-2 rounded">
-                          <p className="text-xs text-gray-500 capitalize">
+                        <div key={key} className="py-2 border-b border-gray-100 last:border-0">
+                          <p className="text-sm font-medium text-gray-700 mb-1 capitalize">
                             {key.replace(/_/g, ' ')}
                           </p>
-                          <p className="font-semibold text-gray-900">{String(value)}</p>
+                          <p className="text-sm text-gray-600 leading-relaxed">{String(value)}</p>
                         </div>
                       ))}
                     </div>
@@ -524,6 +564,160 @@ export default function CompanyDetailsPage() {
               <div className="mt-6">
                 <button
                   onClick={() => setShowDataModal(false)}
+                  className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
+                >
+                  Got it!
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Emissions Calculation Result Modal */}
+      {showEmissionsModal && emissionsResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-2xl font-bold text-green-600 flex items-center">
+                  <span className="mr-2">✅</span>
+                  Carbon Footprint Calculated!
+                </h3>
+                <button
+                  onClick={() => setShowEmissionsModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Total Emissions */}
+              <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-lg p-6 mb-6 text-center">
+                <p className="text-sm text-gray-600 mb-2">Total Carbon Footprint</p>
+                <p className="text-5xl font-bold text-green-700">
+                  {emissionsResult.emissions.total.co2e_tonnes.toFixed(2)}
+                </p>
+                <p className="text-lg text-gray-700 mt-1">tonnes CO2e</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Calculated on {new Date(emissionsResult.calculation_date).toLocaleDateString()}
+                </p>
+              </div>
+
+              {/* Scope Breakdown */}
+              <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                  <p className="text-sm text-gray-600 mb-1">Scope 1</p>
+                  <p className="text-sm text-gray-500 mb-2">Direct Emissions</p>
+                  <p className="text-2xl font-bold text-blue-700">
+                    {emissionsResult.emissions.scope1.co2e_tonnes.toFixed(2)}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">tonnes CO2e</p>
+                  <p className="text-xs text-blue-600 font-semibold mt-2">
+                    {emissionsResult.emissions.breakdown.scope1_percentage}%
+                  </p>
+                </div>
+
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+                  <p className="text-sm text-gray-600 mb-1">Scope 2</p>
+                  <p className="text-sm text-gray-500 mb-2">Energy Indirect</p>
+                  <p className="text-2xl font-bold text-purple-700">
+                    {emissionsResult.emissions.scope2.co2e_tonnes.toFixed(2)}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">tonnes CO2e</p>
+                  <p className="text-xs text-purple-600 font-semibold mt-2">
+                    {emissionsResult.emissions.breakdown.scope2_percentage}%
+                  </p>
+                </div>
+
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-center">
+                  <p className="text-sm text-gray-600 mb-1">Scope 3</p>
+                  <p className="text-sm text-gray-500 mb-2">Value Chain</p>
+                  <p className="text-2xl font-bold text-orange-700">
+                    {emissionsResult.emissions.scope3.co2e_tonnes.toFixed(2)}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">tonnes CO2e</p>
+                  <p className="text-xs text-orange-600 font-semibold mt-2">
+                    {emissionsResult.emissions.breakdown.scope3_percentage}%
+                  </p>
+                </div>
+              </div>
+
+              {/* Detailed Breakdown */}
+              <div className="space-y-4">
+                {/* Scope 1 Details */}
+                {emissionsResult.emissions.scope1.breakdown && emissionsResult.emissions.scope1.breakdown.length > 0 && (
+                  <div className="border border-blue-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-blue-900 mb-3">🔥 Scope 1: Direct Emissions</h4>
+                    <div className="space-y-2">
+                      {emissionsResult.emissions.scope1.breakdown.map((item: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center text-sm bg-blue-50 p-2 rounded">
+                          <span className="text-gray-700">{item.source}</span>
+                          <span className="font-semibold text-blue-700">
+                            {item.co2e_kg > 0 ? `${(item.co2e_kg / 1000).toFixed(2)} tonnes` : item.activity}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Scope 2 Details */}
+                {emissionsResult.emissions.scope2.breakdown && emissionsResult.emissions.scope2.breakdown.length > 0 && (
+                  <div className="border border-purple-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-purple-900 mb-3">⚡ Scope 2: Energy Indirect Emissions</h4>
+                    <div className="space-y-2">
+                      {emissionsResult.emissions.scope2.breakdown.map((item: any, idx: number) => (
+                        <div key={idx} className="bg-purple-50 p-3 rounded">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-medium text-gray-700">{item.source}</span>
+                            <span className="font-bold text-purple-700">
+                              {(item.co2e_kg / 1000).toFixed(2)} tonnes
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            Activity: {item.activity.toLocaleString()} {item.unit}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Scope 3 Details */}
+                {emissionsResult.emissions.scope3.breakdown && emissionsResult.emissions.scope3.breakdown.length > 0 && (
+                  <div className="border border-orange-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-orange-900 mb-3">🌐 Scope 3: Value Chain Emissions</h4>
+                    <div className="space-y-2">
+                      {emissionsResult.emissions.scope3.breakdown.map((item: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center text-sm bg-orange-50 p-2 rounded">
+                          <div>
+                            <span className="text-gray-700">{item.source}</span>
+                            {item.note && <p className="text-xs text-gray-500 mt-1">{item.note}</p>}
+                          </div>
+                          <span className="font-semibold text-orange-700">
+                            {item.co2e_kg > 0 ? `${(item.co2e_kg / 1000).toFixed(2)} tonnes` : item.activity}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Data Quality */}
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
+                <p className="font-semibold text-yellow-900 mb-1">📊 Data Quality</p>
+                <p className="text-sm text-yellow-800">
+                  {emissionsResult.emissions.data_quality} - Calculated using Climatiq API with IPCC-compliant emission factors
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div className="mt-6">
+                <button
+                  onClick={() => setShowEmissionsModal(false)}
                   className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
                 >
                   Got it!
@@ -657,7 +851,7 @@ export default function CompanyDetailsPage() {
               {/* Summary */}
               <div className="bg-pink-50 border border-pink-200 rounded-lg p-4 mb-4">
                 <p className="text-lg font-semibold text-pink-900">
-                  📧 {outreachResult.outreach.emails_sent} email(s) sent successfully
+                  📧 {outreachResult.outreach?.emails_sent || outreachResult.outreach?.emailsSent || outreachResult.emailsSent || 0} email(s) sent successfully
                 </p>
                 <p className="text-sm text-pink-700 mt-1">
                   via SendGrid API (Token Vault)
@@ -806,13 +1000,9 @@ export default function CompanyDetailsPage() {
             <div>
               <p className="text-sm text-gray-500">Created</p>
               <p className="text-sm">
-                {company.created_at.value 
-                  ? new Date(company.created_at.value).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })
-                  : new Date(company.created_at).toLocaleDateString('en-US', {
+                {new Date(typeof company.created_at === 'object' && 'value' in company.created_at 
+                  ? (company.created_at as any).value 
+                  : company.created_at).toLocaleDateString('en-US', {
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric'
@@ -985,7 +1175,7 @@ export default function CompanyDetailsPage() {
               <p className="text-sm text-pink-100">
                 {sendingOutreach
                   ? '📧 Sending email notifications via SendGrid...'
-                  : 'Send email notifications to stakeholders with emissions data'}
+                  : 'Send email with latest ESG report to stakeholders'}
               </p>
             </div>
             {sendingOutreach ? (
@@ -1017,7 +1207,7 @@ export default function CompanyDetailsPage() {
           </button>
 
           <div className="space-y-2">
-            <p className="font-semibold text-gray-900">5. Generate ESG Report (AI Agent)</p>
+            <p className="font-semibold mb-2">5. Generate ESG Report (AI Agent)</p>
             <p className="text-sm text-gray-600 mb-3">
               Select a framework to generate a comprehensive ESG report
             </p>
@@ -1134,6 +1324,66 @@ export default function CompanyDetailsPage() {
           </div>
         </div>
       </div>
+
+      {/* Email Prompt Modal */}
+      <Modal
+        isOpen={showEmailPrompt}
+        onClose={() => {
+          setShowEmailPrompt(false);
+          setStakeholderEmails('');
+        }}
+        title="Send Report to Stakeholders"
+        type="info"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700">
+            Enter email addresses of stakeholders who should receive the ESG report. 
+            Separate multiple emails with commas.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Email Addresses
+            </label>
+            <textarea
+              value={stakeholderEmails}
+              onChange={(e) => setStakeholderEmails(e.target.value)}
+              placeholder="example1@company.com, example2@company.com"
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Example: john@company.com, jane@company.com
+            </p>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => {
+                setShowEmailPrompt(false);
+                setStakeholderEmails('');
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSendEmailsToStakeholders}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Send Emails
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Error Modal */}
+      <Modal
+        isOpen={errorModal.show}
+        onClose={() => setErrorModal({ show: false, message: '' })}
+        title="Error"
+        type="error"
+      >
+        <p className="text-gray-700">{errorModal.message}</p>
+      </Modal>
     </div>
   );
 }

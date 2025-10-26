@@ -43,7 +43,7 @@ class ESGDataCollectionService {
       
       const webScraperPromise = this.runWithTimeout(
         webScraperAgent.execute(state, null),
-        20000,  // 20s for web scraping
+        50000,  // 50s for web scraping (allows for main page + 2 ESG pages)
         'Web Scraper'
       );
       
@@ -71,20 +71,36 @@ class ESGDataCollectionService {
         results.sources.push('EPA Envirofacts');
         console.log(`   ✅ EPA data collected`);
       } else {
-        console.log(`   ⚠️  EPA data collection failed or skipped`);
+        const errorMsg = epaData.reason?.message || 'No EPA data found or company not in US';
+        console.log(`   ⚠️  EPA data collection failed: ${errorMsg}`);
       }
 
       // Web Scraper Data (all categories)
-      if (webData.status === 'fulfilled' && webData.value && webData.value.environmental) {
-        if (webData.value.environmental) {
+      if (webData.status === 'fulfilled' && webData.value) {
+        let hasData = false;
+        
+        if (webData.value.environmental && Object.keys(webData.value.environmental).length > 0) {
           results.environmental = { ...results.environmental, ...webData.value.environmental };
+          hasData = true;
         }
-        results.social = webData.value.social;
-        results.governance = webData.value.governance;
-        results.sources.push('Company Website');
-        console.log(`   ✅ Web scraper data collected`);
+        if (webData.value.social && Object.keys(webData.value.social).length > 0) {
+          results.social = webData.value.social;
+          hasData = true;
+        }
+        if (webData.value.governance && Object.keys(webData.value.governance).length > 0) {
+          results.governance = webData.value.governance;
+          hasData = true;
+        }
+        
+        if (hasData) {
+          results.sources.push('Company Website');
+          console.log(`   ✅ Web scraper data collected`);
+        } else {
+          console.log(`   ⚠️  Web scraper returned no data`);
+        }
       } else {
-        console.log(`   ⚠️  Web scraper failed or skipped`);
+        const errorMsg = webData.reason?.message || 'Unknown error';
+        console.log(`   ⚠️  Web scraper failed: ${errorMsg}`);
       }
 
       // AI Estimator Data (fills gaps) - ALWAYS USE if available
