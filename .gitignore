@@ -4,7 +4,7 @@ package-lock.json
 
 # Environment
 .env
-# .env.local
+.env.local
 
 # Secrets
 .secrets/
@@ -32,3 +32,4 @@ temp/
 docs/
 test/
 scripts/
+reports/
