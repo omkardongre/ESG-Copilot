@@ -11,7 +11,7 @@ interface Report {
   reporting_period: string;
   status: string;
   generated_by: string;
-  generated_at: string;
+  generated_at: string | { value: string };
   content: any;
 }
 
@@ -108,7 +108,7 @@ export default function ReportDetailPage() {
               Report ID: {report.report_id}
             </p>
             <p className="text-sm text-gray-500">
-              Generated: {report.generated_at ? new Date(report.generated_at.value || report.generated_at).toLocaleDateString() : 'N/A'}
+              Generated: {report.generated_at ? new Date(typeof report.generated_at === 'object' ? report.generated_at.value : report.generated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}
             </p>
           </div>
           <span

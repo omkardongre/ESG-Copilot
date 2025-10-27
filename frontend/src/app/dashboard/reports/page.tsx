@@ -93,16 +93,34 @@ export default function ReportsPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const formatDate = (dateString: any) => {
+    if (!dateString) return 'N/A';
     
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    return date.toLocaleDateString();
+    try {
+      // Handle BigQuery TIMESTAMP format (object with 'value' property)
+      let dateValue = dateString;
+      if (typeof dateString === 'object' && dateString.value) {
+        dateValue = dateString.value;
+      }
+      
+      const date = new Date(dateValue);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) return 'N/A';
+      
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - date.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      // Always show full date for consistency
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    } catch (error) {
+      return 'N/A';
+    }
   };
 
   const downloadPDF = async (reportId: string) => {

@@ -106,6 +106,10 @@ export default function CompanyDetailsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        // Improve permission denied error message
+        if (errorData.message && errorData.message.includes('execute:agents')) {
+          throw new Error('Permission Denied: Your role does not have permission to execute AI agents. Only Company Admins and ESG Consultants can run agents.');
+        }
         throw new Error(errorData.error || 'Failed to research regulations');
       }
 
@@ -146,6 +150,10 @@ export default function CompanyDetailsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        // Improve permission denied error message
+        if (errorData.message && errorData.message.includes('execute:agents')) {
+          throw new Error('Permission Denied: Your role does not have permission to execute AI agents. Only Company Admins and ESG Consultants can run agents.');
+        }
         throw new Error(errorData.error || 'Failed to collect ESG data');
       }
 
@@ -181,6 +189,10 @@ export default function CompanyDetailsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        // Improve permission denied error message
+        if (errorData.message && errorData.message.includes('execute:agents')) {
+          throw new Error('Permission Denied: Your role does not have permission to execute AI agents. Only Company Admins and ESG Consultants can run agents.');
+        }
         throw new Error(errorData.error || errorData.message || 'Failed to calculate emissions');
       }
 
@@ -309,6 +321,10 @@ export default function CompanyDetailsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        // Improve permission denied error message
+        if (errorData.message && errorData.message.includes('execute:agents')) {
+          throw new Error('Permission Denied: Your role does not have permission to execute AI agents. Only Company Admins and ESG Consultants can run agents.');
+        }
         throw new Error(errorData.error || 'Failed to generate report');
       }
 
@@ -1015,134 +1031,133 @@ export default function CompanyDetailsPage() {
       </div>
 
       {/* AI Agent Actions */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-xl font-bold mb-4">🤖 AI Agent Actions</h2>
-        <p className="text-gray-600 mb-4">
-          Trigger autonomous AI agents to research regulations, collect ESG data, and generate
-          reports
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg shadow-lg p-6 mb-6 border border-blue-100">
+        <div className="flex items-center mb-2">
+          <span className="text-2xl mr-2">🤖</span>
+          <h2 className="text-2xl font-bold text-gray-800">AI Agent Actions</h2>
+        </div>
+        <p className="text-gray-600 mb-6">
+          Trigger autonomous AI agents secured by Auth0 to research regulations, collect ESG data, and generate reports
         </p>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           <button
             onClick={handleResearchRegulations}
             disabled={researching}
-            className="w-full px-4 py-3 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-left flex items-center justify-between transition-all"
+            className="w-full px-5 py-4 bg-white border-2 border-blue-200 text-gray-800 rounded-lg hover:border-blue-400 hover:shadow-md disabled:bg-gray-100 disabled:cursor-not-allowed text-left flex items-center justify-between transition-all group"
           >
-            <div>
-              <p className="font-semibold">1. Research Regulations (AI Agent)</p>
-              <p className="text-sm text-blue-100">
-                {researching
-                  ? '🔍 Searching web for latest ESG regulations...'
-                  : 'AI analyzes industry, country, and size to identify applicable ESG regulations'}
-              </p>
-            </div>
-            {researching ? (
-              <div className="flex items-center gap-2">
-                <svg
-                  className="animate-spin h-6 w-6 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
+            <div className="flex items-start gap-3">
+              <span className="text-3xl">🔍</span>
+              <div>
+                <p className="font-bold text-lg mb-1 group-hover:text-blue-600">1. Research Regulations</p>
+                <p className="text-sm text-gray-600">
+                  {researching
+                    ? 'Searching web for latest ESG regulations...'
+                    : 'AI analyzes industry, country, and size to identify applicable ESG regulations'}
+                </p>
               </div>
-            ) : (
-              <span className="text-2xl">🔍</span>
+            </div>
+            {researching && (
+              <svg
+                className="animate-spin h-6 w-6 text-blue-600"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
             )}
           </button>
 
           <button
             onClick={handleCollectESGData}
             disabled={collectingData}
-            className="w-full px-4 py-3 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-left flex items-center justify-between transition-all"
+            className="w-full px-5 py-4 bg-white border-2 border-green-200 text-gray-800 rounded-lg hover:border-green-400 hover:shadow-md disabled:bg-gray-100 disabled:cursor-not-allowed text-left flex items-center justify-between transition-all group"
           >
-            <div>
-              <p className="font-semibold">2. Collect ESG Data (AI Agent)</p>
-              <p className="text-sm text-green-100">
-                {collectingData
-                  ? '📊 Collecting data from EPA, web scraping, and AI estimation...'
-                  : 'Parallel data collection from EPA, web scraping, and AI estimation'}
-              </p>
-            </div>
-            {collectingData ? (
-              <div className="flex items-center gap-2">
-                <svg
-                  className="animate-spin h-6 w-6 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
+            <div className="flex items-start gap-3">
+              <span className="text-3xl">📊</span>
+              <div>
+                <p className="font-bold text-lg mb-1 group-hover:text-green-600">2. Collect ESG Data</p>
+                <p className="text-sm text-gray-600">
+                  {collectingData
+                    ? 'Collecting data from EPA, web scraping, and AI estimation...'
+                    : 'Parallel data collection from EPA, web scraping, and AI estimation'}
+                </p>
               </div>
-            ) : (
-              <span className="text-2xl">📊</span>
+            </div>
+            {collectingData && (
+              <svg
+                className="animate-spin h-6 w-6 text-green-600"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
             )}
           </button>
 
           <button
             onClick={handleCalculateEmissions}
             disabled={calculatingEmissions}
-            className="w-full px-4 py-3 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:bg-orange-400 disabled:cursor-not-allowed text-left flex items-center justify-between transition-all"
+            className="w-full px-5 py-4 bg-white border-2 border-orange-200 text-gray-800 rounded-lg hover:border-orange-400 hover:shadow-md disabled:bg-gray-100 disabled:cursor-not-allowed text-left flex items-center justify-between transition-all group"
           >
-            <div>
-              <p className="font-semibold">3. Calculate Emissions (AI Agent)</p>
-              <p className="text-sm text-orange-100">
-                {calculatingEmissions
-                  ? '🌍 Calculating Scope 1, 2, 3 emissions with Climatiq API...'
-                  : 'Calculate carbon footprint using Climatiq API (Token Vault)'}
-              </p>
-            </div>
-            {calculatingEmissions ? (
-              <div className="flex items-center gap-2">
-                <svg
-                  className="animate-spin h-6 w-6 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
+            <div className="flex items-start gap-3">
+              <span className="text-3xl">🌍</span>
+              <div>
+                <p className="font-bold text-lg mb-1 group-hover:text-orange-600">3. Calculate Emissions</p>
+                <p className="text-sm text-gray-600">
+                  {calculatingEmissions
+                    ? 'Calculating Scope 1, 2, 3 emissions with Climatiq API...'
+                    : 'Calculate carbon footprint using Climatiq API (Token Vault)'}
+                </p>
               </div>
-            ) : (
-              <span className="text-2xl">🌍</span>
+            </div>
+            {calculatingEmissions && (
+              <svg
+                className="animate-spin h-6 w-6 text-orange-600"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
             )}
           </button>
 
@@ -1165,11 +1180,16 @@ export default function CompanyDetailsPage() {
             </div>
           )}
 
-          <div className="space-y-2">
-            <p className="font-semibold mb-2">4. Generate ESG Report (AI Agent)</p>
-            <p className="text-sm text-gray-600 mb-3">
-              Select a framework to generate a comprehensive ESG report
-            </p>
+          <div className="bg-white border-2 border-purple-200 rounded-lg p-5">
+            <div className="flex items-start gap-3 mb-4">
+              <span className="text-3xl">📄</span>
+              <div>
+                <p className="font-bold text-lg mb-1 text-gray-800">4. Generate ESG Report</p>
+                <p className="text-sm text-gray-600">
+                  Select a framework to generate a comprehensive ESG report
+                </p>
+              </div>
+            </div>
             <div className="grid grid-cols-3 gap-3">
               <button
                 onClick={() => handleGenerateReport('GRI')}
@@ -1285,50 +1305,52 @@ export default function CompanyDetailsPage() {
       </div>
 
       {/* Service Actions */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-xl font-bold mb-4">📧 Service Actions</h2>
-        <p className="text-gray-600 mb-4">
-          Send reports and notifications to stakeholders
+      <div className="bg-gradient-to-br from-pink-50 to-rose-50 rounded-lg shadow-lg p-6 mb-6 border border-pink-100">
+        <div className="flex items-center mb-2">
+          <span className="text-2xl mr-2">📧</span>
+          <h2 className="text-2xl font-bold text-gray-800">Service Actions</h2>
+        </div>
+        <p className="text-gray-600 mb-6">
+          Send reports and notifications to stakeholders via SendGrid (Token Vault)
         </p>
 
         <button
           onClick={handleSendOutreach}
           disabled={sendingOutreach}
-          className="w-full px-4 py-3 bg-pink-600 text-white rounded hover:bg-pink-700 disabled:bg-pink-400 disabled:cursor-not-allowed text-left flex items-center justify-between transition-all"
+          className="w-full px-5 py-4 bg-white border-2 border-pink-200 text-gray-800 rounded-lg hover:border-pink-400 hover:shadow-md disabled:bg-gray-100 disabled:cursor-not-allowed text-left flex items-center justify-between transition-all group"
         >
-          <div>
-            <p className="font-semibold">Send to Stakeholders</p>
-            <p className="text-sm text-pink-100">
-              {sendingOutreach
-                ? '📧 Sending email notifications via SendGrid...'
-                : 'Send email with latest ESG report to stakeholders'}
-            </p>
-          </div>
-          {sendingOutreach ? (
-            <div className="flex items-center gap-2">
-              <svg
-                className="animate-spin h-6 w-6 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
+          <div className="flex items-start gap-3">
+            <span className="text-3xl">📧</span>
+            <div>
+              <p className="font-bold text-lg mb-1 group-hover:text-pink-600">Send to Stakeholders</p>
+              <p className="text-sm text-gray-600">
+                {sendingOutreach
+                  ? 'Sending email notifications via SendGrid...'
+                  : 'Send email with latest ESG report to stakeholders'}
+              </p>
             </div>
-          ) : (
-            <span className="text-2xl">📧</span>
+          </div>
+          {sendingOutreach && (
+            <svg
+              className="animate-spin h-6 w-6 text-pink-600"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
           )}
         </button>
       </div>
