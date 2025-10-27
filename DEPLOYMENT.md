@@ -3,12 +3,146 @@
 ## Overview
 
 ESG Copilot consists of two parts:
-- **Frontend** (Next.js) → Deploy to **Vercel**
-- **Backend** (Node.js/Express) → Deploy to **Render**
+- **Frontend** (Next.js) → Deploy to **Netlify** (free tier)
+- **Backend** (Node.js/Express) → Deploy to **Render** (free tier)
+
+**Recommended:** Netlify + Render (both have generous free tiers)
 
 ---
 
-## 🚀 Frontend Deployment (Vercel)
+## 🚀 Deployment Steps
+
+### Prerequisites
+- Netlify account (free tier)
+- Render account (free tier)
+- GitHub repository pushed
+
+---
+
+## Step 1: Deploy Backend on Render
+
+1. **Create Backend Web Service**
+   - Go to [render.com](https://render.com)
+   - Click **"New +"** → **"Web Service"**
+   - Connect your GitHub repository
+   - **Name**: `esg-copilot-backend`
+   - **Root Directory**: Leave empty (root)
+   - **Build Command**: `npm install`
+   - **Start Command**: `npm start`
+   - **Environment**: Node
+
+2. **Add Environment Variables** (see Backend Environment Variables section below)
+
+3. **Add GCP Service Account Key**
+   - Render → Settings → Secret Files
+   - **Filename**: `/etc/secrets/gcp-key.json`
+   - **Contents**: Paste your GCP service account JSON
+
+4. **Deploy** - Wait ~5 minutes, copy the URL (e.g., `https://esg-copilot-backend.onrender.com`)
+
+---
+
+### Backend Environment Variables
+
+Add these in Render → Environment:
+
+```
+# Auth0
+AUTH0_DOMAIN=your-tenant.auth0.com
+AUTH0_CLIENT_ID=<client-id>
+AUTH0_CLIENT_SECRET=<client-secret>
+AUTH0_API_IDENTIFIER=<api-identifier>
+AUTH0_AUDIENCE=<api-identifier>
+
+# Google Cloud
+GOOGLE_CLOUD_PROJECT=<project-id>
+GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/gcp-key.json
+DATASET_ID=<dataset-name>
+CLOUD_PROJECT_REGION=us-central1
+
+# Gemini AI
+GOOGLE_API_KEY=<gemini-api-key>
+MODEL=gemini-2.5-flash
+TEMPERATURE=0.2
+TOP_P=0.95
+TOP_K=40
+
+# SendGrid
+SENDGRID_FROM_EMAIL=<verified-sender-email>
+FRONTEND_URL=https://esg-copilot-frontend.onrender.com
+
+# Climatiq
+CLIMATIQ_API_KEY=<climatiq-key>
+
+# Pinecone
+PINECONE_API_KEY=<pinecone-key>
+
+# Auth0 FGA Store
+FGA_API_URL=https://api.us1.fga.dev
+FGA_STORE_ID=<store-id>
+FGA_MODEL_ID=<model-id>
+FGA_API_TOKEN_ISSUER=fga.us.auth0.com
+FGA_API_AUDIENCE=https://api.us1.fga.dev/
+FGA_CLIENT_ID=<fga-client-id>
+FGA_CLIENT_SECRET=<fga-client-secret>
+
+# Report Config
+MAX_REVIEW_ITERATIONS=1
+REPORT_REFINEMENT_ITERATIONS=1
+```
+
+---
+
+## Step 2: Deploy Frontend on Netlify
+
+1. **Push to GitHub** (if not already done)
+```bash
+git add .
+git commit -m "feat: ready for deployment"
+git push origin main
+```
+
+2. **Deploy to Netlify**
+   - Go to [netlify.com](https://netlify.com)
+   - Click **"Add new site"** → **"Import an existing project"**
+   - Connect your GitHub repository
+   - **Base directory**: `frontend`
+   - **Build command**: `npm install --legacy-peer-deps && npm run build`
+   - **Publish directory**: `frontend/.next`
+   - Click **"Deploy site"**
+   
+   > **Note:** The `--legacy-peer-deps` flag resolves Next.js peer dependency conflicts
+
+3. **Configure Environment Variables**
+   - Netlify dashboard → Site settings → Environment variables
+   - Click **"Add a variable"** for each:
+
+```
+AUTH0_SECRET=<generate-with: openssl rand -hex 32>
+AUTH0_BASE_URL=https://your-site-name.netlify.app
+AUTH0_ISSUER_BASE_URL=https://your-tenant.auth0.com
+AUTH0_CLIENT_ID=<from-auth0-dashboard>
+AUTH0_CLIENT_SECRET=<from-auth0-dashboard>
+AUTH0_AUDIENCE=<your-api-identifier>
+NEXT_PUBLIC_API_URL=https://esg-copilot-backend.onrender.com
+AUTH0_SCOPE=openid profile email offline_access
+```
+
+4. **Redeploy**
+   - Site settings → Deploys → **"Trigger deploy"** → **"Deploy site"**
+
+5. **Update Auth0 Callbacks**
+   - Go to Auth0 Dashboard → Applications → Your App
+   - **Allowed Callback URLs**: `https://your-site-name.netlify.app/api/auth/callback`
+   - **Allowed Logout URLs**: `https://your-site-name.netlify.app`
+   - **Allowed Web Origins**: `https://your-site-name.netlify.app`
+
+6. **Update Backend CORS** (if needed)
+   - Update `FRONTEND_URL` in Render backend env variables to your Netlify URL
+
+---
+
+## 🚀 Option 2: Frontend on Vercel (Alternative)
 
 ### Prerequisites
 - Vercel account (free tier works)
@@ -57,11 +191,34 @@ NEXT_PUBLIC_API_URL=https://your-backend.onrender.com
 
 ---
 
-## 🖥️ Backend Deployment (Render)
+---
 
-### Prerequisites
-- Render account (free tier available)
-- GitHub repository pushed
+## 🎯 Why Netlify + Render?
+
+**Netlify (Frontend):**
+- ✅ **Free tier** - 100GB bandwidth, 300 build minutes/month
+- ✅ **Fast CDN** - Global edge network
+- ✅ **Auto-deploy** - Push to GitHub, auto-deploys
+- ✅ **No cold starts** - Always available
+- ✅ **Great Next.js support** - Built-in optimization
+- ✅ **No credit card** required
+
+**Render (Backend):**
+- ✅ **Free tier** - 750 hours/month (1 web service)
+- ✅ **Secret files** - Easy GCP service account upload
+- ✅ **Environment variables** - Simple UI
+- ✅ **Auto-deploy** - Push to GitHub, auto-deploys
+- ⚠️ **Cold starts** - Sleeps after 15 min (~30s wake)
+
+**Why Not Both on Render?**
+- ❌ Render free tier only allows **1 web service**
+- ❌ Would need paid plan ($7/month) for 2nd service
+
+---
+
+## 🔧 Alternative: Backend on Render (if using Vercel for frontend)
+
+If you deployed frontend to Vercel, deploy backend separately:
 
 ### Steps
 
@@ -241,24 +398,26 @@ git push origin main
 ## 💰 Cost Estimate
 
 **Free Tier (Development):**
-- Vercel: $0
+- Netlify: $0
 - Render: $0
 - Total: **$0/month**
 
 **Production (Recommended):**
-- Vercel Pro: $20/month
-- Render Starter: $7/month
-- Total: **$27/month**
+- Netlify Pro: $19/month (optional)
+- Render Starter: $7/month (no cold starts)
+- Total: **$7-26/month**
 
 ---
 
 ## ✅ Post-Deployment Checklist
 
-- [ ] Frontend deployed to Vercel
 - [ ] Backend deployed to Render
-- [ ] All environment variables configured
-- [ ] Auth0 callbacks updated
-- [ ] GCP service account key uploaded
+- [ ] Frontend deployed to Netlify
+- [ ] Backend environment variables configured
+- [ ] Frontend environment variables configured
+- [ ] GCP service account key uploaded to Render
+- [ ] Auth0 callbacks updated with Netlify URL
+- [ ] Backend FRONTEND_URL updated to Netlify URL
 - [ ] Test accounts work
 - [ ] All 5 agents functional
 - [ ] Reports generate correctly
@@ -269,7 +428,8 @@ git push origin main
 
 ## 🆘 Need Help?
 
-- **Vercel Docs:** https://vercel.com/docs
+- **Netlify Docs:** https://docs.netlify.com
 - **Render Docs:** https://render.com/docs
 - **Auth0 Docs:** https://auth0.com/docs
+- **Next.js Deployment:** https://nextjs.org/docs/deployment
 - **GitHub Issues:** https://github.com/omkardongre/ESG-Copilot/issues
