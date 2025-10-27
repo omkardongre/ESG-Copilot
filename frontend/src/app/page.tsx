@@ -141,19 +141,33 @@ export default function Home() {
                 <div className="border-l-4 border-green-500 pl-4">
                   <h4 className="font-semibold mb-2">Regulation Research Agent</h4>
                   <p className="text-sm text-gray-600">
-                    Identifies applicable ESG regulations (EU CSRD, SEC Climate, TCFD) and recommends frameworks
+                    Real-time web search to identify regulations (California SB 253, SEC Climate) and recommend frameworks (GRI, SASB, TCFD)
                   </p>
                 </div>
                 <div className="border-l-4 border-blue-500 pl-4">
                   <h4 className="font-semibold mb-2">ESG Data Collection Agent</h4>
                   <p className="text-sm text-gray-600">
-                    Scrapes company websites and integrates with EPA API to collect sustainability data
+                    Parallel data collection from EPA API, web scraping, and AI estimation with 3 sub-agents
                   </p>
                 </div>
+                <div className="border-l-4 border-orange-500 pl-4">
+                  <h4 className="font-semibold mb-2">Emissions Calculator Agent</h4>
+                  <p className="text-sm text-gray-600">
+                    Calculates Scope 1, 2, 3 carbon emissions using Climatiq API via Token Vault
+                  </p>
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 gap-6 mt-6">
                 <div className="border-l-4 border-purple-500 pl-4">
                   <h4 className="font-semibold mb-2">Report Generator Agent</h4>
                   <p className="text-sm text-gray-600">
-                    Writes professional ESG narratives and generates PDF reports with AI
+                    Generates GRI, SASB, TCFD reports with iterative refinement loop (up to 3 iterations)
+                  </p>
+                </div>
+                <div className="border-l-4 border-indigo-500 pl-4">
+                  <h4 className="font-semibold mb-2">Chat Agent (RAG)</h4>
+                  <p className="text-sm text-gray-600">
+                    Permission-aware Q&A with Auth0 FGA Store authorization and company-scoped knowledge base
                   </p>
                 </div>
               </div>

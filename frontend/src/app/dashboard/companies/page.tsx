@@ -283,12 +283,12 @@ export default function CompaniesPage() {
       )}
 
       {/* Demo Notice */}
-      <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded mb-6">
+      {/* <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded mb-6">
         <p className="font-semibold">🔐 Auth0 Feature: Authenticate the User</p>
         <p className="text-sm mt-1">
           You're logged in as <strong>{user?.email}</strong>. This page is protected by Auth0 Universal Login.
         </p>
-      </div>
+      </div> */}
 
       {/* Create Company Button */}
       <div className="mb-6">

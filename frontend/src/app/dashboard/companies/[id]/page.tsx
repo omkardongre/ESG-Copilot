@@ -859,7 +859,7 @@ export default function CompanyDetailsPage() {
               </div>
 
               {/* Email Results */}
-              {outreachResult.outreach.email_results && outreachResult.outreach.email_results.length > 0 && (
+              {outreachResult.outreach?.email_results && outreachResult.outreach.email_results.length > 0 && (
                 <div className="mb-4">
                   <p className="font-semibold text-gray-700 mb-2">Email Delivery Status:</p>
                   <div className="space-y-2">
@@ -1165,49 +1165,8 @@ export default function CompanyDetailsPage() {
             </div>
           )}
 
-          <button
-            onClick={handleSendOutreach}
-            disabled={sendingOutreach}
-            className="w-full px-4 py-3 bg-pink-600 text-white rounded hover:bg-pink-700 disabled:bg-pink-400 disabled:cursor-not-allowed text-left flex items-center justify-between transition-all"
-          >
-            <div>
-              <p className="font-semibold">4. Send to Stakeholders</p>
-              <p className="text-sm text-pink-100">
-                {sendingOutreach
-                  ? '📧 Sending email notifications via SendGrid...'
-                  : 'Send email with latest ESG report to stakeholders'}
-              </p>
-            </div>
-            {sendingOutreach ? (
-              <div className="flex items-center gap-2">
-                <svg
-                  className="animate-spin h-6 w-6 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-              </div>
-            ) : (
-              <span className="text-2xl">📧</span>
-            )}
-          </button>
-
           <div className="space-y-2">
-            <p className="font-semibold mb-2">5. Generate ESG Report (AI Agent)</p>
+            <p className="font-semibold mb-2">4. Generate ESG Report (AI Agent)</p>
             <p className="text-sm text-gray-600 mb-3">
               Select a framework to generate a comprehensive ESG report
             </p>
@@ -1323,6 +1282,55 @@ export default function CompanyDetailsPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Service Actions */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 className="text-xl font-bold mb-4">📧 Service Actions</h2>
+        <p className="text-gray-600 mb-4">
+          Send reports and notifications to stakeholders
+        </p>
+
+        <button
+          onClick={handleSendOutreach}
+          disabled={sendingOutreach}
+          className="w-full px-4 py-3 bg-pink-600 text-white rounded hover:bg-pink-700 disabled:bg-pink-400 disabled:cursor-not-allowed text-left flex items-center justify-between transition-all"
+        >
+          <div>
+            <p className="font-semibold">Send to Stakeholders</p>
+            <p className="text-sm text-pink-100">
+              {sendingOutreach
+                ? '📧 Sending email notifications via SendGrid...'
+                : 'Send email with latest ESG report to stakeholders'}
+            </p>
+          </div>
+          {sendingOutreach ? (
+            <div className="flex items-center gap-2">
+              <svg
+                className="animate-spin h-6 w-6 text-white"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+            </div>
+          ) : (
+            <span className="text-2xl">📧</span>
+          )}
+        </button>
       </div>
 
       {/* Email Prompt Modal */}
