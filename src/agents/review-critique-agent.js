@@ -3,7 +3,6 @@
 // Provides actionable feedback for iterative refinement
 
 const agentLogger = require('./agent-logger');
-const messageQueue = require('./message-queue');
 const ReportValidatorAgent = require('./sub-agents/report-validator-agent');
 const BenchmarkComparatorAgent = require('./sub-agents/benchmark-comparator-agent');
 const AnomalyDetectorAgent = require('./sub-agents/anomaly-detector-agent');
@@ -80,15 +79,6 @@ class ReviewCritiqueAgent {
         'success',
         null,
         duration
-      );
-
-      // Broadcast results
-      await messageQueue.publishMessage(
-        this.name,
-        'OrchestratorAgent',
-        'review_completed',
-        { reviewResults },
-        state.taskId
       );
 
       console.log(`✅ [${this.name}] Review complete`);

@@ -4,7 +4,6 @@
 // Implements GRI, SASB, TCFD templates
 
 const agentLogger = require('./agent-logger');
-const messageQueue = require('./message-queue');
 const ContentWriterAgent = require('./sub-agents/content-writer-agent');
 const ChartBuilderAgent = require('./sub-agents/chart-builder-agent');
 const FormatterAgent = require('./sub-agents/formatter-agent');
@@ -78,14 +77,7 @@ class ReportGeneratorAgent {
         duration
       );
 
-      // Step 8: Broadcast completion
-      await messageQueue.publishMessage(
-        this.name,
-        'OrchestratorAgent',
-        'report_generated',
-        { formattedReports },
-        state.taskId
-      );
+      // Step 8: Report generation complete (Pub/Sub removed for production)
 
       console.log(`✅ [${this.name}] Report generated successfully`);
       console.log(`   Template: ${template}`);

@@ -10,7 +10,6 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const RAGService = require('../services/rag-service');
 const agentLogger = require('./agent-logger');
-const messageQueue = require('./message-queue');
 
 class ChatAgent {
   constructor({ googleApiKey, pineconeApiKey, openFGAConfig = null }) {
@@ -174,15 +173,7 @@ Provide a helpful, accurate response based ONLY on the context above.`;
         duration
       );
 
-      // Broadcast results
-      await messageQueue.publishMessage(
-        this.name,
-        'OrchestratorAgent',
-        'chat_completed',
-        { chatResult },
-        `chat-${Date.now()}`
-      );
-
+      // Results logged (Pub/Sub removed for production)
       console.log(`✅ [${this.name}] Chat completed successfully`);
       console.log(`   Response length: ${aiMessage.length} chars`);
       console.log(`   Sources used: ${ragResults.length}`);

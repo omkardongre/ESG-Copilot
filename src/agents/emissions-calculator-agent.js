@@ -4,7 +4,6 @@
 const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
 const axios = require('axios');
 const agentLogger = require('./agent-logger');
-const messageQueue = require('./message-queue');
 
 class EmissionsCalculatorAgent {
   constructor(tokenVaultApiKeys = null) {
@@ -73,14 +72,7 @@ class EmissionsCalculatorAgent {
         duration
       );
 
-      // Step 7: Broadcast results
-      await messageQueue.publishMessage(
-        this.name,
-        'OrchestratorAgent',
-        'emissions_calculated',
-        { emissions },
-        state.taskId
-      );
+      // Step 7: Results logged (Pub/Sub removed for production)
 
       console.log(`✅ [${this.name}] Total emissions: ${emissions.total.co2e_tonnes.toFixed(2)} tonnes CO2e`);
       console.log(`   Scope 1: ${scope1.co2e_tonnes.toFixed(2)} tonnes`);
