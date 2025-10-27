@@ -1,6 +1,6 @@
 // Regulation Research Agent
 // Orchestrates sub-agents to identify applicable ESG regulations
-// Sub-agents: Jurisdiction Analyzer, Framework Mapper, Deadline Calculator
+// Sub-agents: Jurisdiction Analyzer, Framework Mapper
 
 const agentLogger = require('./agent-logger');
 const jurisdictionAnalyzerAgent = require('./sub-agents/jurisdiction-analyzer-agent');
@@ -40,7 +40,6 @@ class RegulationResearchAgent {
             results.regulations = subAgentResult.regulations;
           } else if (subAgent.name === 'FrameworkMapperAgent') {
             results.frameworks = subAgentResult.frameworks;
-            results.deadlines = subAgentResult.deadlines;
           }
           
           console.log(`  ✓ ${subAgent.name} completed`);

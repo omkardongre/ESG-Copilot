@@ -25,22 +25,20 @@ class RegulationResearchService {
       
       const startTime = Date.now();
       
-      const [regulations, frameworks, deadlineResults] = await Promise.all([
+      const [regulations, frameworks, deadlineResult] = await Promise.all([
         jurisdictionAnalyzer.execute(state, null),
         frameworkMapper.execute(state, null),
-        Promise.resolve({ deadlines: [] }), // Deadline calculator runs after regulations
+        deadlineCalculator.execute(state, null),
       ]);
-
-      // Run deadline calculator with regulations from jurisdiction analyzer
-      const deadlineData = await deadlineCalculator.execute(state, regulations);
 
       const executionTime = Date.now() - startTime;
       console.log(`   ✅ All 3 agents completed in ${executionTime}ms (parallel execution)`);
 
       // GATHER RESULTS: Aggregate from all agents
+      const deadlines = deadlineResult.deadlines || [];
       const regulationsFound = regulations.length || 0;
       const frameworksFound = frameworks.length || 0;
-      const deadlinesFound = deadlineData.deadlines.length || 0;
+      const deadlinesFound = deadlines.length || 0;
 
       console.log(`   📊 Aggregated results:`);
       console.log(`      - Regulations: ${regulationsFound}`);
@@ -55,7 +53,7 @@ class RegulationResearchService {
         regulation_type: reg.type,
         jurisdiction: reg.jurisdiction,
         description: reg.description,
-        deadline: deadlineData.deadlines[index]?.deadline || this.getDefaultDeadline(),
+        deadline: deadlines[index]?.deadline || this.getDefaultDeadline(),
         framework: frameworks[0] || 'GRI',
         status: 'pending',
         created_at: new Date().toISOString(),
@@ -69,7 +67,7 @@ class RegulationResearchService {
       return {
         regulations,
         frameworks,
-        deadlines: deadlineData.deadlines,
+        deadlines,
         complianceRequirements,
         regulationsFound,
       };
