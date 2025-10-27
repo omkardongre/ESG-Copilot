@@ -40,7 +40,7 @@ export default function ReportsPage() {
       const tokenResponse = await fetch('/api/auth/token');
       const { accessToken } = await tokenResponse.json();
 
-      const response = await fetch('http://localhost:3001/api/reports', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/reports`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
@@ -63,7 +63,7 @@ export default function ReportsPage() {
       const tokenResponse = await fetch('/api/auth/token');
       const { accessToken } = await tokenResponse.json();
 
-      const response = await fetch('http://localhost:3001/api/companies', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/companies`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
@@ -131,7 +131,7 @@ export default function ReportsPage() {
       const tokenResponse = await fetch('/api/auth/token');
       const { accessToken } = await tokenResponse.json();
 
-      const response = await fetch(`http://localhost:3001/api/reports/${reportId}/pdf`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/reports/${reportId}/pdf`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },

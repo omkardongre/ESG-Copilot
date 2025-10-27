@@ -201,7 +201,7 @@ export default function CompaniesPage() {
       const tokenResponse = await fetch('/api/auth/token');
       const { accessToken } = await tokenResponse.json();
 
-      const response = await fetch(`http://localhost:3001/api/companies/${companyId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/companies/${companyId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
