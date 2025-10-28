@@ -39,7 +39,7 @@ export default function ESGDataPage() {
           </div>
 
           <div className="bg-gray-50 p-4 rounded-lg">
-            <h3 className="font-semibold mb-2">Data Sources (Token Vault Protected)</h3>
+            <h3 className="font-semibold mb-2">Data Sources</h3>
             <div className="space-y-2 text-sm">
               <label className="flex items-center">
                 <input type="checkbox" className="mr-2" defaultChecked />

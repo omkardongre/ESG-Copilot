@@ -145,7 +145,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-200px)] flex flex-col">
+    <div className="min-h-screen flex flex-col">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">ESG Copilot Assistant</h1>
         <p className="text-gray-600 mt-2">
@@ -178,7 +178,7 @@ export default function ChatPage() {
       </div>
 
       {/* Chat Messages */}
-      <div className="flex-1 bg-white rounded-lg shadow overflow-y-auto p-6 mb-4">
+      <div className="flex-1 bg-white rounded-lg shadow overflow-y-auto p-6 mb-4 min-h-[600px] max-h-[calc(100vh-400px)]">
         {messages.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">🤖</div>
@@ -211,7 +211,7 @@ export default function ChatPage() {
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-3xl px-4 py-3 rounded-lg ${
+                  className={`max-w-4xl px-6 py-4 rounded-lg ${
                     message.role === 'user'
                       ? 'bg-green-600 text-white'
                       : 'bg-gray-100 text-gray-900'
@@ -222,7 +222,7 @@ export default function ChatPage() {
                       {message.role === 'user' ? '👤' : '🤖'}
                     </span>
                     <div className="flex-1">
-                      <p className="whitespace-pre-wrap">{message.content}</p>
+                      <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
                       
                       {message.sources && message.sources.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-gray-300">

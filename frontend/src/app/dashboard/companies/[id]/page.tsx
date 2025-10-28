@@ -870,7 +870,7 @@ export default function CompanyDetailsPage() {
                   📧 {outreachResult.outreach?.emails_sent || outreachResult.outreach?.emailsSent || outreachResult.emailsSent || 0} email(s) sent successfully
                 </p>
                 <p className="text-sm text-pink-700 mt-1">
-                  via SendGrid API (Token Vault)
+                  via SendGrid API
                 </p>
               </div>
 
@@ -1133,7 +1133,7 @@ export default function CompanyDetailsPage() {
                 <p className="text-sm text-gray-600">
                   {calculatingEmissions
                     ? 'Calculating Scope 1, 2, 3 emissions with Climatiq API...'
-                    : 'Calculate carbon footprint using Climatiq API (Token Vault)'}
+                    : 'Calculate carbon footprint using Climatiq API'}
                 </p>
               </div>
             </div>
@@ -1311,7 +1311,7 @@ export default function CompanyDetailsPage() {
           <h2 className="text-2xl font-bold text-gray-800">Service Actions</h2>
         </div>
         <p className="text-gray-600 mb-6">
-          Send reports and notifications to stakeholders via SendGrid (Token Vault)
+          Send reports and notifications to stakeholders via SendGrid
         </p>
 
         <button

@@ -10,7 +10,11 @@ app.use(express.urlencoded({ extended: true }));
 
 // CORS - Allow frontend access
 app.use((req, res, next) => {
-  const allowedOrigins = ['http://localhost:3000', 'https://esg-copilot.vercel.app'];
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'https://esg-copilot.vercel.app',
+    process.env.FRONTEND_URL || 'https://your-app.vercel.app'
+  ];
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);

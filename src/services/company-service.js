@@ -69,20 +69,28 @@ class CompanyService {
         if (userRole && userRole.includes("Company Admin")) {
           // Create tuple: user is admin of company
           await fgaStoreService.assignUserAsCompanyAdmin(userEmail, companyId);
-          
+
           // ✅ PRODUCTION: Auto-grant viewer access to global roles
           const globalViewers = [
-            'consultant@esgfirm.com',
-            'auditor@sustainapilot.com',
-            'regulator@epa.gov'
+            "consultant@esgfirm.com",
+            "auditor@sustainapilot.com",
+            "regulator@epa.gov",
           ];
-          
+
           for (const viewerEmail of globalViewers) {
             try {
-              await fgaStoreService.assignUserAsCompanyViewer(viewerEmail, companyId);
-              console.log(`✅ [FGA] Auto-granted viewer access: ${viewerEmail} → company:${companyId}`);
+              await fgaStoreService.assignUserAsCompanyViewer(
+                viewerEmail,
+                companyId
+              );
+              console.log(
+                `✅ [FGA] Auto-granted viewer access: ${viewerEmail} → company:${companyId}`
+              );
             } catch (viewerError) {
-              console.warn(`⚠️ [FGA] Failed to grant viewer access to ${viewerEmail}:`, viewerError.message);
+              console.warn(
+                `⚠️ [FGA] Failed to grant viewer access to ${viewerEmail}:`,
+                viewerError.message
+              );
             }
           }
         } else if (
