@@ -123,10 +123,10 @@ class GeminiClient {
       // Log search grounding metadata if available
       if (response.candidates && response.candidates[0]?.groundingMetadata) {
         const metadata = response.candidates[0].groundingMetadata;
-        console.log('✅ Search grounding used:', {
-          searchQueries: metadata.searchEntryPoint?.renderedContent || 'N/A',
-          webSearchQueriesCount: metadata.webSearchQueries?.length || 0
-        });
+        // console.log('✅ Search grounding used:', {
+        //   searchQueries: metadata.searchEntryPoint?.renderedContent || 'N/A',
+        //   webSearchQueriesCount: metadata.webSearchQueries?.length || 0
+        // });
       }
       
       return text;

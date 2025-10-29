@@ -15,24 +15,29 @@ class RegulationResearchService {
    */
   async researchRegulations(companyId, companyData) {
     console.log(`🔍 Researching regulations for company: ${companyData.name}`);
-    console.log(`   🤖 Using multi-agent orchestration (3 parallel agents)`);
+    console.log(`   🤖 Using multi-agent orchestration (hybrid parallel + sequential)`);
 
     const state = { companyData };
 
     try {
-      // PARALLEL EXECUTION: Run 3 agents simultaneously (fan-out)
-      console.log(`   ⚡ Spawning 3 agents in parallel...`);
-      
       const startTime = Date.now();
       
-      const [regulations, frameworks, deadlineResult] = await Promise.all([
+      // PHASE 1: Run jurisdiction analyzer and framework mapper in parallel
+      console.log(`   ⚡ Phase 1: Spawning 2 agents in parallel...`);
+      const [regulations, frameworks] = await Promise.all([
         jurisdictionAnalyzer.execute(state, null),
         frameworkMapper.execute(state, null),
-        deadlineCalculator.execute(state, null),
       ]);
 
+      const phase1Time = Date.now() - startTime;
+      console.log(`   ✅ Phase 1 completed in ${phase1Time}ms`);
+
+      // PHASE 2: Run deadline calculator with regulations from phase 1
+      console.log(`   ⚡ Phase 2: Running deadline calculator with ${regulations.length} regulations...`);
+      const deadlineResult = await deadlineCalculator.execute(state, { regulations });
+
       const executionTime = Date.now() - startTime;
-      console.log(`   ✅ All 3 agents completed in ${executionTime}ms (parallel execution)`);
+      console.log(`   ✅ All agents completed in ${executionTime}ms (hybrid execution)`);
 
       // GATHER RESULTS: Aggregate from all agents
       const deadlines = deadlineResult.deadlines || [];
