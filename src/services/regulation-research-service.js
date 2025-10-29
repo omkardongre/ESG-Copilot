@@ -51,18 +51,34 @@ class RegulationResearchService {
       console.log(`      - Deadlines: ${deadlinesFound}`);
 
       // Step 4: Store in BigQuery
-      const complianceRequirements = regulations.map((reg, index) => ({
-        requirement_id: uuidv4(),
-        company_id: companyId,
-        regulation_name: reg.name,
-        regulation_type: reg.type,
-        jurisdiction: reg.jurisdiction,
-        description: reg.description,
-        deadline: deadlines[index]?.deadline || this.getDefaultDeadline(),
-        framework: frameworks[0] || 'GRI',
-        status: 'pending',
-        created_at: new Date().toISOString(),
-      }));
+      const complianceRequirements = regulations.map((reg, index) => {
+        let deadline = deadlines[index]?.deadline || this.getDefaultDeadline();
+        
+        // Validate and fix date format (must be YYYY-MM-DD)
+        if (deadline && !deadline.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          console.log(`      ⚠️  Invalid date format "${deadline}", converting to valid format`);
+          // If it's just a year (e.g., "2027"), convert to "2027-01-01"
+          if (deadline.match(/^\d{4}$/)) {
+            deadline = `${deadline}-01-01`;
+          } else {
+            // Fallback to default deadline
+            deadline = this.getDefaultDeadline();
+          }
+        }
+        
+        return {
+          requirement_id: uuidv4(),
+          company_id: companyId,
+          regulation_name: reg.name,
+          regulation_type: reg.type,
+          jurisdiction: reg.jurisdiction,
+          description: reg.description,
+          deadline: deadline,
+          framework: frameworks[0] || 'GRI',
+          status: 'pending',
+          created_at: new Date().toISOString(),
+        };
+      });
 
       if (complianceRequirements.length > 0) {
         console.log(`   💾 Storing ${complianceRequirements.length} compliance requirements in BigQuery`);

@@ -42,6 +42,10 @@ Task:
 3. Identify recurring vs one-time deadlines
 4. Check for any upcoming changes or new requirements in 2024-2025
 
+CRITICAL: The "deadline" field MUST be in YYYY-MM-DD format (e.g., "2027-01-01", NOT just "2027").
+If only a year is known, use January 1st of that year (e.g., "2027" becomes "2027-01-01").
+If only a month and year are known, use the 1st of that month (e.g., "June 2027" becomes "2027-06-01").
+
 Respond with a JSON array of deadlines:
 [
   {
